@@ -10,7 +10,7 @@ const MODULOS = [
     descripcion: "Análisis económico del transporte de arena de fractura desde Zárate hasta Sea White (Bahía Blanca). Modelo ideal, fricciones climáticas, Monte Carlo P10–P90 y análisis mensual.",
     icono: "⛴️",
     status: "activo",
-    url: null, // se completa cuando transporte-arena esté deployado
+    url: "https://transporte-arena.vercel.app", // se completa cuando transporte-arena esté deployado
     color: "#235C96",
     tags: ["Logística", "Arena", "Monte Carlo", "Análisis"],
   },

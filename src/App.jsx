@@ -4,7 +4,6 @@ import { supabase } from "./lib/supabase";
 const ERP_HOME_URL = "https://erp-home-nine.vercel.app";
 
 const MODULOS = [
-
   {
     id: "crewing",
     nombre: "Crewing",
@@ -20,8 +19,8 @@ const MODULOS = [
     nombre: "Compras",
     descripcion: "Requisiciones, tracker de órdenes de compra, proveedores y KPIs.",
     icono: "🛒",
-    status: "proximamente",
-    url: null,
+    status: "activo",
+    url: "https://compras-app-beta.vercel.app",
     color: "#6B4FA0",
     tags: ["Requisiciones", "Proveedores", "KPIs"],
   },
@@ -151,7 +150,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .card-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 12px; }
 .card-tag { font-family: var(--mono); font-size: 9px; padding: 2px 7px; background: #F0F4F8; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
 .card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border); margin-top: auto; }
-.card-link { font-size: 11px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px; letter-spacing: .3px; text-transform: uppercase; cursor: pointer; }
+.card-link { font-size: 11px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px; letter-spacing: .3px; text-transform: uppercase; cursor: pointer; border: none; background: none; font-family: var(--sans); padding: 0; }
 .card-link:hover { text-decoration: underline; }
 .card-link-disabled { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .3px; }
 
@@ -169,62 +168,40 @@ function ModuloCard({ mod, tieneAcceso }) {
   const isActivo = mod.status === "activo";
   const puedeAbrir = isActivo && mod.url && tieneAcceso;
 
-  const handleClick = () => {
-    if (puedeAbrir) window.open(mod.url, "_blank");
-  };
+  const handleClick = () => { if (puedeAbrir) window.open(mod.url, "_self"); };
 
   let clase = `modulo-card ${mod.status}`;
   if (isActivo && !tieneAcceso) clase = "modulo-card sin-acceso";
 
   return (
-    <div
-      className={clase}
-      style={{ "--card-color": mod.color }}
-      onClick={handleClick}
-    >
+    <div className={clase} style={{ "--card-color": mod.color }} onClick={handleClick}>
       <div className="card-top">
-        <div
-          className="card-icono"
-          style={{
-            background: `${mod.color}18`,
-            border: `1px solid ${mod.color}30`,
-          }}
-        >
+        <div className="card-icono" style={{ background: `${mod.color}18`, border: `1px solid ${mod.color}30` }}>
           {mod.icono}
         </div>
         <div className="card-badges">
-          {isActivo && !tieneAcceso ? (
-            <span className="badge-sin-acceso">Sin acceso</span>
-          ) : isActivo ? (
-            <span className="badge-activo">● Activo</span>
-          ) : (
-            <span className="badge-prox">Próximamente</span>
-          )}
+          {isActivo && !tieneAcceso
+            ? <span className="badge-sin-acceso">Sin acceso</span>
+            : isActivo
+              ? <span className="badge-activo">● Activo</span>
+              : <span className="badge-prox">Próximamente</span>
+          }
         </div>
       </div>
-
       <div className="card-body">
         <div className="card-nombre">{mod.nombre}</div>
         <div className="card-desc">{mod.descripcion}</div>
-        <div className="card-tags">
-          {mod.tags.map((t) => (
-            <span key={t} className="card-tag">{t}</span>
-          ))}
-        </div>
+        <div className="card-tags">{mod.tags.map(t => <span key={t} className="card-tag">{t}</span>)}</div>
       </div>
-
       <div className="card-footer">
-        {isActivo && !tieneAcceso ? (
-          <span className="card-link-disabled">Acceso no autorizado</span>
-        ) : puedeAbrir ? (
-          <span className="card-link" style={{ color: mod.color }}>
-            Abrir módulo →
-          </span>
-        ) : isActivo && !mod.url ? (
-          <span className="card-link-disabled">En deploy...</span>
-        ) : (
-          <span className="card-link-disabled">En desarrollo</span>
-        )}
+        {isActivo && !tieneAcceso
+          ? <span className="card-link-disabled">Acceso no autorizado</span>
+          : puedeAbrir
+            ? <span className="card-link" style={{ color: mod.color }}>Abrir módulo →</span>
+            : isActivo && !mod.url
+              ? <span className="card-link-disabled">En deploy...</span>
+              : <span className="card-link-disabled">En desarrollo</span>
+        }
       </div>
     </div>
   );
@@ -249,14 +226,8 @@ export default function App() {
 
   const loadPermisos = async (userId) => {
     try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("modulos")
-        .eq("user_id", userId)
-        .single();
-      setModulosPermitidos(
-        data?.modulos?.length > 0 ? data.modulos : null
-      );
+      const { data } = await supabase.from("user_roles").select("modulos").eq("user_id", userId).single();
+      setModulosPermitidos(data?.modulos?.length > 0 ? data.modulos : null);
     } catch {
       setModulosPermitidos(null);
     } finally {
@@ -269,8 +240,8 @@ export default function App() {
     return modulosPermitidos.includes(moduloId);
   };
 
-  const activos = MODULOS.filter((m) => m.status === "activo");
-  const proximos = MODULOS.filter((m) => m.status === "proximamente");
+  const activos = MODULOS.filter(m => m.status === "activo");
+  const proximos = MODULOS.filter(m => m.status === "proximamente");
 
   if (loading) {
     return (
@@ -287,24 +258,15 @@ export default function App() {
 
       <header className="header">
         <div className="header-brand">
-          <img
-            src="/logo-tm.png"
-            alt="Terra Mare"
-            className="header-logo-img"
-          />
+          <img src="/logo-tm.png" alt="Terra Mare" className="header-logo-img" />
           <div>
             <div className="header-main">Terra Mare Services</div>
             <div className="header-sub">Portal de gestión</div>
           </div>
         </div>
         <div className="header-right">
-          {userEmail && (
-            <span className="header-email">{userEmail}</span>
-          )}
-          <button
-            className="back-btn"
-            onClick={() => window.open(ERP_HOME_URL, "_self")}
-          >
+          {userEmail && <span className="header-email">{userEmail}</span>}
+          <button className="back-btn" onClick={() => window.open(ERP_HOME_URL, "_self")}>
             ← Volver al ERP
           </button>
         </div>
@@ -313,9 +275,7 @@ export default function App() {
       <div className="hero">
         <div className="hero-content">
           <div className="hero-eyebrow">Portal de gestión</div>
-          <h1 className="hero-title">
-            Terra Mare <span>Services</span>
-          </h1>
+          <h1 className="hero-title">Terra Mare <span>Services</span></h1>
           <p className="hero-desc" style={{ margin: "0 auto" }}>
             Crewing, logística y operaciones marítimas para clientes externos.
           </p>
@@ -335,20 +295,13 @@ export default function App() {
       <div className="content">
         <div className="section-label">Módulos activos</div>
         <div className="modulos-grid">
-          {activos.map((mod) => (
-            <ModuloCard
-              key={mod.id}
-              mod={mod}
-              tieneAcceso={tieneAcceso(mod.id)}
-            />
+          {activos.map(mod => (
+            <ModuloCard key={mod.id} mod={mod} tieneAcceso={tieneAcceso(mod.id)} />
           ))}
         </div>
-
-        <div className="section-label" style={{ marginTop: 8 }}>
-          Próximamente
-        </div>
+        <div className="section-label" style={{ marginTop: 8 }}>Próximamente</div>
         <div className="modulos-grid">
-          {proximos.map((mod) => (
+          {proximos.map(mod => (
             <ModuloCard key={mod.id} mod={mod} tieneAcceso={true} />
           ))}
         </div>
@@ -356,9 +309,7 @@ export default function App() {
 
       <footer className="portal-footer">
         <div className="footer-left">Terra Mare Services · Confidencial</div>
-        <div className="footer-right">
-          v1.0 — {new Date().getFullYear()}
-        </div>
+        <div className="footer-right">v1.0 — {new Date().getFullYear()}</div>
       </footer>
     </>
   );

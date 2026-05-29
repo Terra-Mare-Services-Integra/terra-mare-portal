@@ -170,6 +170,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
   height: 60px; position: sticky; top: 0; z-index: 10;
   border-bottom: 1px solid rgba(35,92,150,0.25);
 }
+.header-integra-img { height: 44px; width: auto; object-fit: contain; opacity: 0.95; }
+.login-left-integra-wrap { margin-bottom: 8px; }
+.login-left-integra-img  { height: 340px; width: auto; object-fit: contain; opacity: 0.95; }
+.login-left-divider { width: 100%; height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0 20px; }
+.login-left-company { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.login-left-company-logo { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2); }
+.login-left-company-name { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
 .header-brand { display: flex; align-items: center; gap: 14px; }
 .header-logo-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2); }
 .header-divider { width: 1px; height: 24px; background: rgba(35,92,150,0.3); margin: 0 2px; }
@@ -296,12 +303,13 @@ function LoginPage() {
       <div className="login-bg-overlay" />
       <div className="login-split">
         <div className="login-left">
-          <div className="login-left-eyebrow">Portal de gestión</div>
-          <div className="login-left-logo">
-            <img src="/logo-tm.png" alt="Terra Mare" />
+          <div className="login-left-integra-wrap">
+            <img src="/integralogo.png" alt="INTEGRA" className="login-left-integra-img" />
           </div>
-          <div className="login-left-title">
-            TERRA<span>MARE</span>
+          <div className="login-left-divider" />
+          <div className="login-left-company">
+            <img src="/logo-tm.png" alt="Terra Mare" className="login-left-company-logo" />
+            <div className="login-left-company-name">Terra Mare Services</div>
           </div>
           <div className="login-left-line" />
           <div className="login-left-sub">
@@ -462,12 +470,7 @@ export default function App() {
 
       <header className="header">
         <div className="header-brand">
-          <img src="/logo-tm.png" alt="Terra Mare" className="header-logo-img" />
-          <div className="header-divider" />
-          <div>
-            <div className="header-main">Terra Mare Services</div>
-            <div className="header-sub">Portal de gestión</div>
-          </div>
+          <img src="/integralogo.png" alt="INTEGRA" className="header-integra-img" />
         </div>
         <div className="header-right">
           <span className="header-email">{session.user.email}</span>

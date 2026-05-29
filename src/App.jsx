@@ -175,7 +175,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .login-left-integra-img  { height: 340px; width: auto; object-fit: contain; opacity: 0.95; }
 .login-left-divider { width: 100%; height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0 20px; }
 .login-left-company { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
-.login-left-company-logo { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2); }
+.login-left-company-logo { width: 48px; height: 48px; border-radius: 50%; object-fit: contain; border: 1.5px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
 .login-left-company-name { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
 .header-brand { display: flex; align-items: center; gap: 14px; }
 .header-logo-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid rgba(255,255,255,0.2); }

@@ -238,7 +238,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 /* ── GRID ── */
-.modulos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 40px; }
+.modulos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 360px)); gap: 16px; margin-bottom: 40px; }
 
 /* ── CARD ── */
 .modulo-card {

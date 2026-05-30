@@ -511,11 +511,14 @@ export default function App() {
       </div>
 
       <div className="content">
-        <div className="section-label">Módulos</div>
+        <div className="section-label">Módulos activos</div>
         <div className="modulos-grid">
           {activos.map(mod => (
             <ModuloCard key={mod.id} mod={mod} tieneAcceso={tieneAcceso(mod.id)} />
           ))}
+        </div>
+        <div className="section-label" style={{ marginTop: 8 }}>Próximamente</div>
+        <div className="modulos-grid">
           {proximos.map(mod => (
             <ModuloCard key={mod.id} mod={mod} tieneAcceso={true} />
           ))}

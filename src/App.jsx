@@ -238,7 +238,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
 /* ── GRID ── */
-.modulos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 360px)); gap: 16px; margin-bottom: 40px; }
+.modulos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 40px; }
 
 /* ── CARD ── */
 .modulo-card {
@@ -511,14 +511,11 @@ export default function App() {
       </div>
 
       <div className="content">
-        <div className="section-label">Módulos activos</div>
+        <div className="section-label">Módulos</div>
         <div className="modulos-grid">
           {activos.map(mod => (
             <ModuloCard key={mod.id} mod={mod} tieneAcceso={tieneAcceso(mod.id)} />
           ))}
-        </div>
-        <div className="section-label" style={{ marginTop: 8 }}>Próximamente</div>
-        <div className="modulos-grid">
           {proximos.map(mod => (
             <ModuloCard key={mod.id} mod={mod} tieneAcceso={true} />
           ))}

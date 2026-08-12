@@ -1,111 +1,532 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+/* ============================================================================
+   INTEGRA · Hoja única de estilos
+   Fuente: INTEGRA Brand Book v1.0 (agosto 2026)
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+   Reemplaza a src/index.css y src/App.css (los dos eran el CSS de ejemplo
+   de Vite). Se importa UNA vez, desde src/main.jsx, antes de App.
+   ============================================================================ */
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+/* ── TOKENS ───────────────────────────────────────────────────────────────── */
+:root{
+  /* primarios */
+  --navy-integra:#082F4E;   /* estructura y jerarquía. NUNCA acción */
+  --navy-hover:#0A3F5F;
+  --teal-integra:#056D76;   /* único color de acción */
+  --teal-press:#04565D;
+  --teal-on-navy:#6FA3AE;
+  --teal-8:#E6F1F2;
+
+  /* escala neutra · 9 escalones */
+  --n-900:#0F1419; --n-800:#2C3A45; --n-700:#4A5560; --n-600:#7A8792;
+  --n-400:#C9D0D6; --n-300:#E4E8EC; --n-200:#F4F6F8; --n-100:#FAFBFC;
+  --n-000:#FFFFFF;
+
+  /* estado · sólo comunican estado, nunca acento decorativo */
+  --state-ok:#0E7A5F;    --state-ok-bg:#E8F3EF;
+  --state-warn:#8F5A0B;  --state-warn-bg:#FBF1E3;
+  --state-error:#B3261E; --state-error-bg:#FAEAE8;
+  --state-draft:#4A5560; --state-draft-bg:#F4F6F8;
+
+  /* alias */
+  --text-body:var(--n-900);
+  --text-secondary:var(--n-700);
+  --text-muted:var(--n-700);
+  --text-title:var(--navy-integra);
+  --surface-app:var(--n-100);
+  --surface-panel:var(--n-000);
+  --border-control:var(--n-400);
+  --border-divider:var(--n-300);
+
+  /* tipografía */
+  --font-sans:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"IBM Plex Mono","SFMono-Regular",Menlo,monospace;
+
+  /* espaciado base 4 */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-6:24px; --space-8:32px; --space-12:48px;
+
+  /* forma */
+  --radius:4px; --radius-badge:3px;
+  --row-height:40px; --control-height:36px;
+
+  /* elevación · sin sombras salvo capas flotantes */
+  --shadow-floating:0 8px 24px rgba(15,20,25,.14);
+
+  /* layout */
+  --app-min-width:1280px;
+  --topbar-height:56px;
+
+  /* movimiento · el sistema no se mueve: cambia de color */
+  --transition-color:color 120ms cubic-bezier(.2,0,.38,.9),
+                     background-color 120ms cubic-bezier(.2,0,.38,.9),
+                     border-color 120ms cubic-bezier(.2,0,.38,.9);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* ── THEMING POR INSTANCIA ────────────────────────────────────────────────────
+   Una instancia no es un rediseño: son cuatro tokens.
+   Se activa con <html data-instance="clean-sea">. Sin atributo, corre INTEGRA.
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+   --brand-accent          TINTA interactiva (links, foco, texto de acción)
+   --brand-accent-strong   RELLENO de superficie interactiva (botón primario)
+   Relleno y tinta son trabajos distintos: el amarillo de PL Offshore funciona
+   como relleno (7.6:1 con navy encima) y nunca como tinta sobre blanco (1.85:1).
+   ──────────────────────────────────────────────────────────────────────────── */
+:root,[data-instance="integra"]{
+  --brand-nav:#082F4E; --brand-accent:#056D76; --brand-accent-strong:#056D76;
+  --brand-on-accent:#FFFFFF; --brand-accent-on-navy:#6FA3AE;
 }
-
-body {
-  margin: 0;
+[data-instance="clean-sea"]{
+  --brand-nav:#1B3765; --brand-accent:#006945; --brand-accent-strong:#00764D;
+  --brand-on-accent:#FFFFFF; --brand-accent-on-navy:#3FC48F;
 }
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+[data-instance="pl-offshore"]{
+  --brand-nav:#002247; --brand-accent:#002247; --brand-accent-strong:#F8BC05;
+  --brand-on-accent:#002247; --brand-accent-on-navy:#F8BC05;
+}
+[data-instance="terramare"]{
+  --brand-nav:#213363; --brand-accent:#1F5285; --brand-accent-strong:#235C96;
+  --brand-on-accent:#FFFFFF; --brand-accent-on-navy:#8FB2D6;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* ── BASE ─────────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:light}
+body{
+  min-height:100vh;
+  background:var(--surface-app);
+  color:var(--text-body);
+  font:400 15px/1.55 var(--font-sans);
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--brand-accent);text-decoration:none;transition:var(--transition-color)}
+a:hover{color:var(--navy-integra);text-decoration:underline}
+button{font-family:var(--font-sans)}
+*:focus-visible{outline:2px solid var(--brand-accent);outline-offset:2px}
+
+/* ── ROLES TIPOGRÁFICOS ───────────────────────────────────────────────────── */
+.i-title{font:600 24px/1.25 var(--font-sans);color:var(--text-title)}
+.i-subtitle{font:600 18px/1.35 var(--font-sans);color:var(--n-800)}
+.i-body{font:400 15px/1.55 var(--font-sans)}
+.i-cell{font:400 13px/1.45 var(--font-sans)}
+.i-label{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.i-data{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── BOTONES ──────────────────────────────────────────────────────────────── */
+.btn{
+  height:var(--control-height);padding:0 16px;border-radius:var(--radius);
+  font:500 14px/1.2 var(--font-sans);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  transition:var(--transition-color);border:1px solid transparent;
+}
+.btn:disabled{cursor:not-allowed}
+/* primario · un solo primario por vista */
+.btn-primary{background:var(--brand-accent-strong);color:var(--brand-on-accent)}
+.btn-primary:hover:not(:disabled){background:var(--navy-integra);color:#fff}
+.btn-primary:active:not(:disabled){background:var(--teal-press)}
+.btn-primary:disabled{background:var(--n-400);color:var(--n-700)}
+.btn-secondary{background:var(--surface-panel);color:var(--n-800);border-color:var(--border-control)}
+.btn-secondary:hover{background:var(--n-200)}
+.btn-secondary:active{background:var(--n-300)}
+/* sobre navy */
+.btn-on-navy{
+  height:28px;padding:0 12px;border-radius:var(--radius-badge);
+  background:transparent;color:rgba(255,255,255,.72);
+  border:1px solid rgba(255,255,255,.22);
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;
+}
+.btn-on-navy:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.4)}
+.btn-on-navy.is-active{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.45)}
+
+/* ── BADGES DE ESTADO ─────────────────────────────────────────────────────── */
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:3px 8px;border-radius:var(--radius-badge);
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;
+  white-space:nowrap;
+}
+.badge-ok{background:var(--state-ok-bg);color:var(--state-ok)}
+.badge-draft{background:var(--state-draft-bg);color:var(--state-draft)}
+.badge-error{background:var(--state-error-bg);color:var(--state-error)}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* ── LOGIN ────────────────────────────────────────────────────────────────── */
+.login-page{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) 560px;background:var(--surface-panel)}
+
+.login-brand{
+  background:var(--brand-nav);padding:56px 64px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:48px;
+}
+.login-brand-top{display:flex;align-items:center;justify-content:space-between;gap:32px}
+.login-brand-logo{height:56px;width:auto;object-fit:contain;display:block;flex:0 0 auto}
+.login-env{
+  display:flex;align-items:center;gap:8px;flex:0 0 auto;
+  padding:5px 10px;border:1px solid rgba(255,255,255,.22);border-radius:var(--radius-badge);
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:rgba(255,255,255,.86);white-space:nowrap;
+}
+.login-env-dot{width:6px;height:6px;border-radius:50%;background:var(--brand-accent-on-navy)}
+.login-eyebrow{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;
+  color:var(--brand-accent-on-navy);margin-bottom:16px;
+}
+.login-h1{font:600 32px/1.2 var(--font-sans);color:#fff;max-width:520px;text-wrap:pretty}
+.login-rule{width:56px;height:3px;background:var(--brand-accent-on-navy);margin:24px 0}
+.login-lead{font:400 15px/1.55 var(--font-sans);color:rgba(255,255,255,.82);max-width:460px;text-wrap:pretty}
+.login-areas{
+  display:grid;grid-template-columns:1fr 1fr;gap:1px;
+  margin-top:40px;max-width:520px;background:rgba(255,255,255,.14);
+}
+.login-area{
+  background:var(--brand-nav);padding:14px 20px 14px 0;
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.86);
+}
+.login-brand-foot{border-top:1px solid rgba(255,255,255,.14);padding-top:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:32px}
+.login-marks{display:flex;align-items:center;gap:14px}
+.login-marks img{height:30px;width:auto;object-fit:contain;display:block;flex:0 0 auto;opacity:.85}
+.login-meta{text-align:right;font:500 11px/1.6 var(--font-mono);letter-spacing:.06em;color:rgba(255,255,255,.72);white-space:nowrap}
+
+.login-form-side{padding:56px 64px;display:flex;flex-direction:column}
+.login-form-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--border-divider)}
+.login-tls{
+  display:flex;align-items:center;gap:7px;padding:5px 10px;background:var(--n-200);border-radius:var(--radius-badge);
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700);white-space:nowrap;
+}
+.login-form{padding-top:32px;display:flex;flex-direction:column;flex:1}
+.login-form-title{font:600 24px/1.25 var(--font-sans);color:var(--navy-integra)}
+.login-form-lead{font:400 15px/1.55 var(--font-sans);color:var(--text-secondary);margin-top:8px}
+.login-fields{margin-top:28px;display:flex;flex-direction:column;gap:var(--space-4)}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.field input{
+  height:var(--control-height);padding:0 12px;
+  border:1px solid var(--border-control);border-radius:var(--radius);
+  background:var(--surface-panel);color:var(--text-body);
+  font:400 14px/1.2 var(--font-sans);outline:none;transition:var(--transition-color);
+}
+.field input::placeholder{color:var(--n-600)}
+.field input:focus{border-width:2px;border-color:var(--brand-accent);padding:0 11px}
+.field input:disabled{background:var(--n-200);color:var(--n-600)}
+.field-pass{position:relative}
+.field-pass-toggle{
+  position:absolute;right:8px;top:24px;height:32px;padding:0 8px;
+  background:transparent;border:0;cursor:pointer;
+  font:500 13px/1.2 var(--font-sans);color:var(--brand-accent);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+/* aviso · color de estado en el borde izquierdo y en el label, no en el fondo */
+.alert{
+  padding:12px 16px;background:var(--surface-panel);
+  border:1px solid var(--border-divider);border-left:3px solid var(--state-error);
+  border-radius:var(--radius);
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+.alert-label{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--state-error);margin-bottom:4px}
+.alert-text{font:400 13px/1.45 var(--font-sans);color:var(--text-body)}
+.alert-warn{border-left-color:var(--state-warn)}
+.alert-warn .alert-label{color:var(--state-warn)}
+
+.login-form-foot{margin-top:auto;padding-top:32px}
+.login-form-foot-rule{height:1px;background:var(--border-divider);margin-bottom:20px}
+.login-form-foot-row{display:flex;align-items:center;justify-content:space-between;gap:16px;font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700)}
+
+/* ── TOP BAR ──────────────────────────────────────────────────────────────── */
+.topbar{
+  height:var(--topbar-height);background:var(--brand-nav);
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:0 var(--space-6);position:sticky;top:0;z-index:10;
 }
-p {
-  margin: 0;
+.topbar-logo{height:30px;width:auto;object-fit:contain;display:block;flex:0 0 auto}
+.topbar-right{display:flex;align-items:center;gap:var(--space-3)}
+.topbar-user{font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:rgba(255,255,255,.72);white-space:nowrap}
+.topbar-sep{width:1px;height:20px;background:rgba(255,255,255,.14)}
+
+/* ── PÁGINA ───────────────────────────────────────────────────────────────── */
+.page{max-width:1280px;margin:0 auto;padding:var(--space-8) var(--space-6) var(--space-12)}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-6);margin-bottom:var(--space-8)}
+.page-eyebrow{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.page-title{font:600 24px/1.25 var(--font-sans);color:var(--navy-integra)}
+.page-lead{font:400 15px/1.55 var(--font-sans);color:var(--text-secondary);margin-top:8px;max-width:60ch;text-wrap:pretty}
+.page-rule{width:56px;height:3px;background:var(--brand-accent);margin-top:16px}
+
+.section-label{
+  display:flex;align-items:baseline;gap:var(--space-3);margin-bottom:var(--space-3);
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);
+}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border-divider)}
+.section-count{font:400 13px/1.2 var(--font-sans);color:var(--n-700);text-transform:none;letter-spacing:0}
+
+/* ── GRILLA DE MÓDULOS ───────────────────────────────────────────────────── */
+.mods-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-6)}
+@media (max-width:1100px){.mods-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.mods-grid{grid-template-columns:1fr}}
+
+/* card · blanca, borde 1px, radio 4, sin sombra. La separación la hace el borde */
+.mod-card{
+  background:var(--surface-panel);border:1px solid var(--border-divider);
+  border-radius:var(--radius);overflow:hidden;
+  display:flex;flex-direction:column;
+  transition:var(--transition-color);
+}
+.mod-card.is-open{cursor:pointer}
+.mod-card.is-open:hover{border-color:var(--navy-integra)}
+.mod-card.is-blocked{cursor:not-allowed;background:var(--n-100)}
+.mod-card-bar{height:3px;background:var(--card-color);flex-shrink:0}
+.mod-card-body{padding:var(--space-6);flex:1;display:flex;flex-direction:column;gap:var(--space-3)}
+.mod-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
+.mod-logo{
+  height:36px;width:auto;max-width:120px;object-fit:contain;display:block;flex:0 0 auto;
+}
+.mod-code{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;color:var(--card-color);
+  border:1px solid var(--border-divider);border-radius:var(--radius-badge);padding:6px 8px;
+}
+.mod-nombre{font:600 18px/1.35 var(--font-sans);color:var(--navy-integra)}
+.mod-desc{font:400 13px/1.45 var(--font-sans);color:var(--text-secondary);flex:1;text-wrap:pretty}
+.mod-tags{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.mod-tag{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;
+  padding:5px 7px;background:var(--n-200);border:1px solid var(--border-divider);
+  border-radius:var(--radius-badge);color:var(--n-800);
+}
+.mod-card-foot{
+  padding:var(--space-3) var(--space-6);border-top:1px solid var(--border-divider);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);
+  background:var(--n-100);
+}
+.mod-link{font:500 14px/1.2 var(--font-sans);color:var(--brand-accent)}
+.mod-card.is-open:hover .mod-link{color:var(--navy-integra)}
+.mod-link-off{font:400 13px/1.2 var(--font-sans);color:var(--n-700)}
+.mod-count{font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700);white-space:nowrap}
+
+/* ── PIE ──────────────────────────────────────────────────────────────────── */
+.site-foot{
+  border-top:1px solid var(--border-divider);background:var(--surface-panel);
+  padding:var(--space-4) var(--space-6);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
+}
+.site-foot span{font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700)}
+/* atribución · único lugar donde INTEGRA aparece en una instancia de cliente */
+.powered{color:#7A8792}
+
+/* ── CARGANDO ─────────────────────────────────────────────────────────────── */
+.loading-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--brand-nav)}
+.loading-inner{text-align:center;display:flex;flex-direction:column;align-items:center;gap:var(--space-6)}
+.loading-inner img{height:40px;width:auto;object-fit:contain;display:block}
+.loading-text{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+
+@media (max-width:900px){
+  .login-page{grid-template-columns:1fr}
+  .login-brand{padding:40px 24px}
+  .login-form-side{padding:40px 24px}
+  .login-areas{max-width:100%}
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+/* ── AJUSTES DE INSTANCIA · PL OFFSHORE ───────────────────────────────────── */
+.mods-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+@media (max-width:1100px){.mods-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}}
+@media (max-width:640px){.mods-grid{grid-template-columns:1fr}}
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.mod-card-bar{background:var(--brand-accent-strong)}
+.mod-card.is-blocked .mod-card-bar,
+.mod-card.is-soon .mod-card-bar{background:var(--border-divider)}
+.mod-code{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;color:var(--navy-integra);
+  border:1px solid var(--border-divider);border-radius:var(--radius-badge);padding:6px 8px;
+  background:var(--n-200);
 }
+.mod-nombre{font:600 15px/1.35 var(--font-sans)}
+
+/* panel de marca del login · logo de la empresa adelante, INTEGRA al pie */
+.login-claim{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.72);margin-top:16px;
+}
+.login-built-on{display:flex;flex-direction:column;gap:12px}
+.login-built-on-label{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.60);
+}
+.login-built-on img{height:26px;width:auto;object-fit:contain;display:block;opacity:.92}
+.login-brand-logo{height:88px}
+.topbar-logo{height:26px}
+
+/* ── INSTANCIA FIJA · TERRAMARE ───────────────────────────────────────────────
+   Este repo es una sola instancia. Los tokens de marca se fijan acá y no
+   dependen del atributo data-instance del index.html.
+   Azul profundo #213363 de estructura · azul de identidad #235C96 como acción.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root{
+  --brand-nav:#213363;
+  --brand-accent:#1F5285;
+  --brand-accent-strong:#235C96;
+  --brand-on-accent:#FFFFFF;
+  --brand-accent-on-navy:#8FB2D6;
+}
+.btn-primary{font-weight:600}
+.btn-primary:hover:not(:disabled){background:#213363;color:#fff}
+.btn-primary:active:not(:disabled){background:#1B4A7A;color:#fff}
+.login-rule{background:#8FB2D6}
+.page-rule{background:#235C96}
+.login-brand-logo{height:56px}
+.brandstrip-logo{height:44px}
+.mcard.is-open:hover{border-color:#213363}
+
+/* ══ PORTAL DE MÓDULOS ═══════════════════════════════════════════════════════
+   Estructura del prototipo: barra INTEGRA + selector de empresa, franja de
+   marca con saludo, grilla de módulos y columna de estado.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── barra superior ───────────────────────────────────────────────────────── */
+.topbar{gap:var(--space-6);padding:0 var(--space-6)}
+.topbar-iso{height:26px;width:auto;object-fit:contain;display:block;flex:0 0 auto}
+.topbar-div{width:1px;height:24px;background:rgba(255,255,255,.14);flex:0 0 auto}
+.topbar-company{
+  display:flex;align-items:center;gap:8px;flex:0 0 auto;
+  font:500 14px/1.2 var(--font-sans);color:#fff;white-space:nowrap;
+  background:none;border:0;padding:0;cursor:default;
+}
+.topbar-search{
+  flex:1;max-width:420px;display:flex;align-items:center;gap:10px;
+  height:32px;padding:0 12px;background:rgba(255,255,255,.10);
+  border:0;border-radius:var(--radius);
+  font:400 14px/1.2 var(--font-sans);color:rgba(255,255,255,.72);
+  transition:var(--transition-color);
+}
+.topbar-search::placeholder{color:rgba(255,255,255,.72)}
+.topbar-search:focus{background:rgba(255,255,255,.16);outline:none;color:#fff}
+.topbar-tools{margin-left:auto;display:flex;align-items:center;gap:20px}
+.topbar-icon{
+  position:relative;background:none;border:0;padding:0;cursor:pointer;
+  color:rgba(255,255,255,.86);display:block;
+}
+.topbar-icon-count{
+  position:absolute;top:-3px;right:-5px;min-width:15px;height:15px;padding:0 3px;
+  border-radius:8px;background:var(--state-error);color:#fff;
+  font:500 10px/15px var(--font-mono);text-align:center;
+}
+.topbar-id{display:flex;align-items:center;gap:10px}
+.topbar-avatar{
+  width:28px;height:28px;border-radius:var(--radius);background:rgba(255,255,255,.14);
+  color:#fff;font:500 12px/28px var(--font-mono);text-align:center;flex:0 0 auto;
+}
+.topbar-name{display:block;font:500 13px/1.25 var(--font-sans);color:#fff;white-space:nowrap}
+.topbar-role{display:block;font:500 10px/1.3 var(--font-mono);letter-spacing:.06em;color:rgba(255,255,255,.72)}
+.topbar-exit{
+  background:none;border:0;padding:0;cursor:pointer;white-space:nowrap;
+  font:500 13px/1.2 var(--font-sans);color:rgba(255,255,255,.86);
+}
+.topbar-exit:hover{color:#fff;text-decoration:underline}
+
+/* ── franja de marca ──────────────────────────────────────────────────────── */
+.brandstrip{
+  background:var(--surface-panel);border-bottom:1px solid var(--border-divider);
+  padding:20px var(--space-6);display:flex;align-items:center;gap:var(--space-6);
+}
+.brandstrip-logo{height:48px;width:auto;object-fit:contain;display:block;flex:0 0 auto}
+.brandstrip-div{width:1px;height:40px;background:var(--border-divider);flex:0 0 auto}
+.brandstrip-hello{font:600 18px/1.35 var(--font-sans);color:var(--navy-integra);margin-top:3px}
+.brandstrip-right{margin-left:auto;display:flex;align-items:center;gap:var(--space-6)}
+.brandstrip-last{text-align:right}
+.brandstrip-last-val{font:400 13px/1.45 var(--font-mono);color:var(--text-secondary);margin-top:3px}
+
+/* ── cuerpo ───────────────────────────────────────────────────────────────── */
+.portal-body{
+  padding:var(--space-6);display:grid;grid-template-columns:minmax(0,1fr) 320px;
+  gap:var(--space-6);align-items:start;max-width:1440px;margin:0 auto;
+}
+@media (max-width:1200px){.portal-body{grid-template-columns:minmax(0,1fr)}}
+.portal-main{min-width:0;display:flex;flex-direction:column;gap:var(--space-6)}
+.sec-head{display:flex;align-items:baseline;gap:var(--space-3);margin-bottom:var(--space-3)}
+.sec-head h2{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--n-700)}
+.sec-head-count{font:400 13px/1.2 var(--font-sans);color:var(--n-700)}
+.sec-head-rule{flex:1;height:1px;background:var(--border-divider)}
+
+/* retomar donde dejaste */
+.recent-row{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.recent-chip{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;
+  background:var(--surface-panel);border:1px solid var(--border-divider);
+  border-radius:var(--radius);transition:var(--transition-color);
+}
+.recent-chip:hover{border-color:var(--navy-integra);text-decoration:none}
+.recent-code{font:500 12px/1.2 var(--font-mono);letter-spacing:.04em;color:var(--navy-integra);white-space:nowrap}
+.recent-label{font:400 13px/1.2 var(--font-sans);color:var(--text-secondary);white-space:nowrap}
+.recent-mod{font:500 10px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700);white-space:nowrap}
+
+/* grilla de módulos */
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-3)}
+@media (max-width:1000px){.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.mgrid{grid-template-columns:1fr}}
+.mcard{
+  display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-4);
+  background:var(--surface-panel);border:1px solid var(--border-divider);
+  border-radius:var(--radius);transition:var(--transition-color);
+}
+a.mcard:hover{border-color:var(--navy-integra);text-decoration:none}
+.mcard--off{background:var(--n-200)}
+.mcard-head{display:flex;align-items:flex-start;gap:var(--space-3)}
+.mcard-code{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;color:var(--navy-integra);
+  border:1px solid var(--border-divider);border-radius:var(--radius-badge);
+  padding:5px 7px;background:var(--n-200);flex:0 0 auto;
+}
+.mcard--off .mcard-code{color:var(--n-700);background:var(--surface-panel)}
+.mcard-text{flex:1;min-width:0}
+.mcard-name{display:block;font:600 15px/1.35 var(--font-sans);color:var(--navy-integra)}
+.mcard--off .mcard-name{color:var(--text-secondary)}
+.mcard-desc{display:block;font:400 13px/1.45 var(--font-sans);color:var(--text-secondary);margin-top:4px;text-wrap:pretty}
+.mcard--off .mcard-desc{color:var(--text-muted)}
+.mcard-rule{height:1px;background:var(--border-divider)}
+.mcard-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
+.mcard-act{font:500 11px/1.2 var(--font-mono);letter-spacing:.04em;color:var(--n-700);white-space:nowrap}
+.mcard-action{font:500 13px/1.2 var(--font-sans);color:var(--brand-accent);white-space:nowrap}
+.pill{
+  font:500 11px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 7px;border-radius:var(--radius-badge);white-space:nowrap;
+}
+.pill-ok{color:var(--state-ok);background:var(--state-ok-bg)}
+.pill-warn{color:var(--state-warn);background:var(--state-warn-bg)}
+.pill-error{color:var(--state-error);background:var(--state-error-bg)}
+.pill-draft{color:var(--state-draft);background:var(--state-draft-bg)}
+
+/* columna derecha */
+.portal-aside{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.acard{background:var(--surface-panel);border:1px solid var(--border-divider);border-radius:var(--radius);padding:var(--space-4)}
+.acard-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-bottom:var(--space-3)}
+.acard-title{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--n-700)}
+.acard-link{font:500 12px/1.2 var(--font-sans)}
+.notif-list{display:flex;flex-direction:column;gap:var(--space-3)}
+.notif{border-left:3px solid var(--state-draft);padding-left:var(--space-3)}
+.notif-error{border-left-color:var(--state-error)}
+.notif-warn{border-left-color:var(--state-warn)}
+.notif-info{border-left-color:var(--brand-accent)}
+.notif-label{font:500 10px/1.2 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--state-draft)}
+.notif-error .notif-label{color:var(--state-error)}
+.notif-warn .notif-label{color:var(--state-warn)}
+.notif-info .notif-label{color:var(--brand-accent)}
+.notif-text{font:400 13px/1.45 var(--font-sans);color:var(--text-body);margin-top:5px;text-wrap:pretty}
+.notif-date{font:400 11px/1.2 var(--font-mono);color:var(--n-700);margin-top:6px}
+.status-now{display:flex;align-items:center;gap:var(--space-2);margin-bottom:14px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--state-ok);flex:0 0 auto}
+.status-dot--unknown{background:var(--n-400)}
+.status-text{font:500 14px/1.2 var(--font-sans);color:var(--text-body)}
+.kv-list{display:flex;flex-direction:column;gap:10px}
+.kv{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3)}
+.kv-k{font:400 13px/1.45 var(--font-sans);color:var(--text-secondary)}
+.kv-v{font:400 13px/1.45 var(--font-mono);color:var(--text-body);white-space:nowrap}
+.kv-v--text{font-family:var(--font-sans);text-align:right;white-space:normal;word-break:break-word}
+.aside-empty{font:400 13px/1.45 var(--font-sans);color:var(--text-secondary)}
+
+/* pie */
+.portal-foot{
+  border-top:1px solid var(--border-divider);background:var(--surface-panel);
+  padding:var(--space-4) var(--space-6);display:flex;align-items:center;
+  justify-content:space-between;gap:var(--space-4);flex-wrap:wrap;
+}
+.portal-foot-left{display:flex;align-items:center;gap:var(--space-4)}
+.portal-foot-logo{height:22px;width:auto;object-fit:contain;display:block;opacity:.8}
+.portal-foot-right{display:flex;align-items:center;gap:20px}
+.portal-foot span{font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700)}
+.portal-foot a{font:500 13px/1.2 var(--font-sans)}

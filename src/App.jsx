@@ -8,15 +8,15 @@ const EMPRESA_NOMBRE = "TerraMare Services";
 /* Módulos de la instancia. El código mono reemplaza al icono: es la
    convención de la marca (el brand book declara el set propio pendiente). */
 const MODULOS = [
-  { id:"ais-analyzer", codigo:"AIS", nombre:"AIS Analyzer",
-    descripcion:"Análisis de tráfico y posiciones AIS para estudios de ruta y ocupación.",
-    estado:"activo", url:"https://ais-analyzer.vercel.app" },
-  { id:"transporte-arena", codigo:"ARENA", nombre:"Transporte de arena",
-    descripcion:"Modelo de costos y logística para el transporte de arena.",
-    estado:"activo", url:"https://transporte-arena.vercel.app" },
-  { id:"evaluacion-gdm", codigo:"GDM", nombre:"Evaluación GdM",
-    descripcion:"Evaluación de inversión y escenarios del proyecto Golfo San Matías.",
-    estado:"activo", url:"https://evaluacion-gdm.vercel.app" },
+  /* Agrupa AIS Analyzer, Transporte de arena y Evaluación GdM: cualquiera
+     de esos permisos (o el del grupo) habilita la tarjeta. */
+  { id:"evaluacion-proyectos", codigo:"EVAL", nombre:"Evaluación de proyectos",
+    descripcion:"Transporte de arena, AIS Analyzer y Evaluación GdM.",
+    estado:"activo", url:"https://evaluacion-proyectos.vercel.app",
+    permisos:["evaluacion-proyectos", "ais-analyzer", "transporte-arena", "evaluacion-gdm"] },
+  { id:"loading-masters", codigo:"LM", nombre:"Loading Masters",
+    descripcion:"Certificación mensual del servicio CO&C a VMOS y emisión de proformas.",
+    estado:"activo", url:"https://loading-masters.vercel.app" },
   { id:"hsqe", codigo:"HSQE", nombre:"HSQE",
     descripcion:"Certificaciones, inspecciones, incidentes y no conformidades.",
     estado:"proximo", url:null },
@@ -298,7 +298,11 @@ function Portal({ user, permisos, onLogout }) {
     return () => { vivo = false; };
   }, [user.id]);
 
-  const tieneAcceso = (id) => !permisos || permisos.includes(id);
+  const tieneAcceso = (id) => {
+    if (!permisos) return true;
+    const ids = MODULOS.find(m => m.id === id)?.permisos || [id];
+    return ids.some(p => permisos.includes(p));
+  };
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 

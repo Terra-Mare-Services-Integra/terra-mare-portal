@@ -8,27 +8,9 @@ const EMPRESA_NOMBRE = "TerraMare Services";
 /* Módulos de la instancia. El código mono reemplaza al icono: es la
    convención de la marca (el brand book declara el set propio pendiente). */
 const MODULOS = [
-  /* Agrupa AIS Analyzer, Transporte de arena y Evaluación GdM: cualquiera
-     de esos permisos (o el del grupo) habilita la tarjeta. */
-  { id:"evaluacion-proyectos", codigo:"EVAL", nombre:"Evaluación de proyectos",
-    descripcion:"Transporte de arena, AIS Analyzer y Evaluación GdM.",
-    estado:"activo", url:"https://evaluacion-proyectos.vercel.app",
-    permisos:["evaluacion-proyectos", "ais-analyzer", "transporte-arena", "evaluacion-gdm"] },
-  { id:"loading-masters", codigo:"LM", nombre:"Loading Masters",
+  { id:"loading-masters", codigo:"LM", nombre:"VMOS Loading Masters",
     descripcion:"Certificación mensual del servicio CO&C a VMOS y emisión de proformas.",
     estado:"activo", url:"https://loading-masters.vercel.app" },
-  { id:"hsqe", codigo:"HSQE", nombre:"HSQE",
-    descripcion:"Certificaciones, inspecciones, incidentes y no conformidades.",
-    estado:"proximo", url:null },
-  { id:"pipeline", codigo:"PIPE", nombre:"Pipeline de oportunidades",
-    descripcion:"Seguimiento comercial de licitaciones, propuestas y oportunidades.",
-    estado:"proximo", url:null },
-  { id:"dashboards", codigo:"DASH", nombre:"Dashboards",
-    descripcion:"Panel ejecutivo con KPIs consolidados de todos los módulos.",
-    estado:"proximo", url:null },
-  { id:"documentos", codigo:"DOC", nombre:"Control documental",
-    descripcion:"Documentos técnicos, versiones, aprobaciones y vencimientos.",
-    estado:"desarrollo", url:null },
 ];
 
 const NOTA_ESTADO = {
@@ -298,11 +280,7 @@ function Portal({ user, permisos, onLogout }) {
     return () => { vivo = false; };
   }, [user.id]);
 
-  const tieneAcceso = (id) => {
-    if (!permisos) return true;
-    const ids = MODULOS.find(m => m.id === id)?.permisos || [id];
-    return ids.some(p => permisos.includes(p));
-  };
+  const tieneAcceso = (id) => !permisos || permisos.includes(id);
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
@@ -398,7 +376,7 @@ function Portal({ user, permisos, onLogout }) {
           {resto.length > 0 && (
             <section>
               <div className="sec-head">
-                <h2>Sin acceso y en desarrollo</h2>
+                <h2>Sin acceso</h2>
                 <span className="sec-head-rule" />
               </div>
               <div className="mgrid">

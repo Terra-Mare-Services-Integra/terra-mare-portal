@@ -10,7 +10,7 @@ const EMPRESA_NOMBRE = "TerraMare Services";
 const MODULOS = [
   { id:"loading-masters", codigo:"LM", nombre:"VMOS Loading Masters",
     descripcion:"Certificación mensual del servicio CO&C a VMOS y emisión de proformas.",
-    estado:"activo", url:"https://loading-masters.vercel.app" },
+    estado:"activo", url:"https://integra.loadingmasters.terra-mare.com.ar" },
 ];
 
 const NOTA_ESTADO = {

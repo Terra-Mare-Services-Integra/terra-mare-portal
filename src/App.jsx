@@ -129,7 +129,7 @@ function LoginPage() {
           </div>
           <div className="login-meta">
             <div>TerraMare Services</div>
-            <div>integra.terra-mare.com.ar</div>
+            <div>integra.home.terra-mare.com.ar</div>
           </div>
         </div>
       </section>
@@ -297,7 +297,7 @@ function Portal({ user, permisos, onLogout }) {
   }, [user.id]);
 
   const ruta = useRuta();
-  const tieneAcceso = (id) => permisos.admin || permisos.modulos.includes(id);
+  const tieneAcceso = (id) => permisos.admin || (id === "loading-masters" ? !!permisos.lm : permisos.modulos.includes(id));
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
@@ -336,7 +336,7 @@ function Portal({ user, permisos, onLogout }) {
         </div>
       </header>
 
-      {ruta === "#/admin" && permisos.admin ? <AdminTerraMare modulos={MODULOS} /> :
+      {ruta === "#/admin" && permisos.admin ? <AdminTerraMare /> :
        ruta === "#/tracker" && tieneAcceso("tracker") ? <Tracker user={user} /> : <>
       <div className="brandstrip">
         <img src="/terramare-azul.png" alt="TERRAMARE" className="brandstrip-logo" />
@@ -513,21 +513,23 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Acceso a la instancia: 'terramare' en user_roles.empresas. Módulos: tm_accesos. Admins: tm_admins.
+  // Supabase de Terra Mare: entra quien tiene fila en tm_accesos (o es admin); sus módulos están ahí.
+  // Loading Masters: rol en la app (editor o lector). Admins: tm_admins.
   const loadPermisos = async (userId) => {
     try {
-      const [roles, accesos, admin] = await Promise.all([
-        supabase.from("user_roles").select("empresas").eq("user_id", userId).maybeSingle(),
+      const [accesos, admin, lm] = await Promise.all([
         supabase.from("tm_accesos").select("modulos").eq("user_id", userId).maybeSingle(),
         supabase.rpc("tm_es_admin"),
+        supabase.rpc("rol_usuario"),
       ]);
       setPermisos({
         admin: admin.data === true,
-        terramare: (roles.data?.empresas ?? []).includes(EMPRESA_ID),
+        terramare: !!accesos.data,
         modulos: accesos.data?.modulos ?? [],
+        lm: lm.data ?? null,
       });
     } catch {
-      setPermisos({ admin: false, terramare: false, modulos: [] });
+      setPermisos({ admin: false, terramare: false, modulos: [], lm: null });
     } finally {
       setLoading(false);
     }

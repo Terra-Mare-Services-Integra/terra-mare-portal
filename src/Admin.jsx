@@ -3,15 +3,16 @@ import { supabase } from "./lib/supabase";
 import "./tracker.css";
 
 /* ─── ADMINISTRACIÓN DE TERRA MARE ───────────────────────────────────────────
-   Quién entra a la instancia, qué módulos ve y en qué tableros del tracker está.
-   Un tablero que no es tuyo no aparece: ni siquiera se ve que existe. */
+   Una sola lista de cuentas (Supabase de Terra Mare): quién entra al portal, qué acceso tiene en
+   Loading Masters, si ve el tracker y en qué tableros está. Un tablero que no es tuyo no aparece. */
 
 const ok = ({ data, error }) => { if (error) throw error; return data; };
+const ROLES_LM = [["", "Sin acceso"], ["lector", "Solo lectura"], ["editor", "Edición"]];
 
-export default function AdminTerraMare({ modulos }) {
+export default function AdminTerraMare() {
   const [usuarios, setUsuarios] = useState(null);
   const [tableros, setTableros] = useState([]);
-  const [soloTm, setSoloTm] = useState(true);
+  const [soloPortal, setSoloPortal] = useState(false);
   const [buscar, setBuscar] = useState("");
   const [guardando, setGuardando] = useState("");
   const [error, setError] = useState("");
@@ -28,40 +29,42 @@ export default function AdminTerraMare({ modulos }) {
     leer().then(aplicar, (e) => setError(e.message));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cada cambio se guarda al instante; si falla, se vuelve a leer lo que quedó en la base.
-  const cambiar = async (u, clave, fn) => {
-    setGuardando(`${u.user_id}:${clave}`);
+  // Cada cambio se guarda al instante; después se vuelve a leer lo que quedó en la base.
+  const cambiar = async (u, fn) => {
+    setGuardando(u.user_id);
     setError("");
     try {
       await fn();
-      aplicar(await leer());
     } catch (e) {
       setError(`No se pudo guardar el cambio de ${u.email}: ${e.message}`);
-      aplicar(await leer().catch(() => [usuarios, tableros]));
-    } finally {
-      setGuardando("");
     }
+    try { aplicar(await leer()); } catch (e) { setError(e.message); }
+    setGuardando("");
   };
 
-  const toggleEmpresa = (u) => cambiar(u, "tm", async () =>
-    ok(await supabase.rpc("tm_set_acceso_empresa", { p_user: u.user_id, p_acceso: !u.terramare })));
-  const toggleModulo = (u, id) => cambiar(u, id, async () => {
-    const nuevos = u.modulos.includes(id) ? u.modulos.filter((m) => m !== id) : [...u.modulos, id];
-    ok(await supabase.from("tm_accesos").upsert({ user_id: u.user_id, modulos: nuevos, updated_at: new Date().toISOString() }));
+  const togglePortal = (u) => cambiar(u, async () => {
+    if (u.portal) ok(await supabase.from("tm_accesos").delete().eq("user_id", u.user_id));
+    else ok(await supabase.from("tm_accesos").insert({ user_id: u.user_id, modulos: [] }));
   });
-  const toggleTablero = (u, t) => cambiar(u, t.id, async () => {
+  const toggleTracker = (u) => cambiar(u, async () => {
+    const modulos = u.modulos.includes("tracker") ? u.modulos.filter((m) => m !== "tracker") : [...u.modulos, "tracker"];
+    ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
+  });
+  const cambiarLm = (u, rol) => cambiar(u, async () => {
     const email = u.email.toLowerCase();
-    if (u.tableros.includes(t.id)) {
-      ok(await supabase.from("lean_miembros").delete().eq("tablero_id", t.id).eq("email", email));
-    } else {
-      ok(await supabase.from("lean_miembros").insert({ tablero_id: t.id, email }));
-    }
+    if (!rol) ok(await supabase.from("lm_accesos").delete().eq("email", email));
+    else ok(await supabase.from("lm_accesos").upsert({ email, rol, updated_at: new Date().toISOString() }));
+  });
+  const toggleTablero = (u, t) => cambiar(u, async () => {
+    const email = u.email.toLowerCase();
+    if (u.tableros.includes(t.id)) ok(await supabase.from("lean_miembros").delete().eq("tablero_id", t.id).eq("email", email));
+    else ok(await supabase.from("lean_miembros").insert({ tablero_id: t.id, email }));
   });
 
   if (!usuarios) return <div className="lean"><div className="aside-empty">{error || "Cargando usuarios…"}</div></div>;
 
   const visibles = usuarios
-    .filter((u) => !soloTm || u.terramare)
+    .filter((u) => !soloPortal || u.portal)
     .filter((u) => !buscar || u.email.toLowerCase().includes(buscar.toLowerCase()));
 
   return (
@@ -73,7 +76,7 @@ export default function AdminTerraMare({ modulos }) {
           <h1 className="lean-title">Accesos de Terra Mare</h1>
         </div>
         <p className="lean-ayuda">
-          Habilitá la instancia, los módulos y los tableros del tracker para cada cuenta. Los cambios se guardan al instante.
+          Todas las cuentas de Terra Mare en un solo lugar. Los cambios se guardan al instante.
           Un tablero solo lo ven sus miembros: quien no está, ni siquiera ve que existe.
         </p>
       </div>
@@ -83,8 +86,8 @@ export default function AdminTerraMare({ modulos }) {
       <div className="lean-filtros">
         <label className="lean-campo"><span>Buscar mail</span><input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="nombre@empresa.com" /></label>
         <label className="lean-check">
-          <input type="checkbox" checked={soloTm} onChange={(e) => setSoloTm(e.target.checked)} />
-          Solo cuentas con acceso a Terra Mare
+          <input type="checkbox" checked={soloPortal} onChange={(e) => setSoloPortal(e.target.checked)} />
+          Solo cuentas con acceso al portal
         </label>
       </div>
 
@@ -93,34 +96,39 @@ export default function AdminTerraMare({ modulos }) {
           <thead>
             <tr>
               <th>Usuario</th>
-              <th>Terra Mare</th>
-              {modulos.map((m) => <th key={m.id}>{m.nombre}</th>)}
+              <th>Portal</th>
+              <th>Loading Masters</th>
+              <th>Tracker Lean</th>
               {tableros.map((t) => <th key={t.id} className="admin-tablero">Tablero<br />{t.nombre}</th>)}
             </tr>
           </thead>
           <tbody>
             {visibles.map((u) => {
-              const ocupado = guardando.startsWith(`${u.user_id}:`);
-              const conTracker = u.modulos.includes("tracker");
+              const ocupado = guardando === u.user_id;
+              const conTracker = u.portal && u.modulos.includes("tracker");
               return (
-                <tr key={u.user_id} className={u.terramare ? "" : "admin-sin"}>
+                <tr key={u.user_id} className={u.portal || u.lm ? "" : "admin-sin"}>
                   <td className="mono">{u.email}{ocupado && <div className="lean-sub">Guardando…</div>}</td>
                   <td>
                     <label className="lean-check admin-check">
-                      <input type="checkbox" checked={u.terramare} disabled={ocupado} onChange={() => toggleEmpresa(u)} />
-                      {u.terramare ? "Con acceso" : "Sin acceso"}
+                      <input type="checkbox" checked={u.portal} disabled={ocupado} onChange={() => togglePortal(u)} />
+                      {u.portal ? "Con acceso" : "Sin acceso"}
                     </label>
                   </td>
-                  {modulos.map((m) => (
-                    <td key={m.id}>
-                      <input type="checkbox" aria-label={`${m.nombre} para ${u.email}`} checked={u.modulos.includes(m.id)}
-                        disabled={ocupado || !u.terramare} onChange={() => toggleModulo(u, m.id)} />
-                    </td>
-                  ))}
+                  <td>
+                    <select className="admin-select" aria-label={`Loading Masters para ${u.email}`} value={u.lm ?? ""} disabled={ocupado}
+                      onChange={(e) => cambiarLm(u, e.target.value)}>
+                      {ROLES_LM.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <input type="checkbox" aria-label={`Tracker para ${u.email}`} checked={conTracker}
+                      disabled={ocupado || !u.portal} onChange={() => toggleTracker(u)} title={u.portal ? "" : "Primero dale acceso al portal"} />
+                  </td>
                   {tableros.map((t) => (
                     <td key={t.id}>
                       <input type="checkbox" aria-label={`Tablero ${t.nombre} para ${u.email}`} checked={u.tableros.includes(t.id)}
-                        disabled={ocupado || !u.terramare || !conTracker} onChange={() => toggleTablero(u, t)}
+                        disabled={ocupado || !conTracker} onChange={() => toggleTablero(u, t)}
                         title={conTracker ? "" : "Primero habilitá el Tracker Lean"} />
                     </td>
                   ))}
@@ -132,9 +140,9 @@ export default function AdminTerraMare({ modulos }) {
       </div>
 
       <p className="lean-regla">
-        Cuentas nuevas: se crean en Supabase (Authentication → Users → Add user, con "Auto Confirm User") y después se habilitan acá.
-        Loading Masters tiene su propio ingreso: esta casilla muestra la tarjeta en el portal; el permiso dentro de la app se maneja en Loading Masters.
-        El rol de cada miembro en un tablero (admin o miembro) se cambia desde el tablero, en "Miembros".
+        Cuentas nuevas: se crean en el Supabase de Terra Mare (Authentication → Users → Add user, con "Auto Confirm User")
+        y aparecen acá para habilitarlas. Loading Masters: "Edición" ve y carga todo (sueldos, márgenes, facturación);
+        "Solo lectura" ve Resultado y Dashboards. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
       </p>
     </div>
   );

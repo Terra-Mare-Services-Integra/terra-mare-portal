@@ -302,7 +302,6 @@ function Portal({ user, permisos, onLogout }) {
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
   const habilitados = MODULOS.filter(m => m.estado === "activo" && tieneAcceso(m.id));
-  const resto       = MODULOS.filter(m => !(m.estado === "activo" && tieneAcceso(m.id)));
 
   return (
     <>
@@ -381,7 +380,6 @@ function Portal({ user, permisos, onLogout }) {
           <section>
             <div className="sec-head">
               <h2>Módulos habilitados</h2>
-              <span className="sec-head-count">{habilitados.length} de {MODULOS.length}</span>
               <span className="sec-head-rule" />
             </div>
             {habilitados.length > 0 ? (
@@ -395,19 +393,6 @@ function Portal({ user, permisos, onLogout }) {
             )}
           </section>
 
-          {resto.length > 0 && (
-            <section>
-              <div className="sec-head">
-                <h2>Sin acceso</h2>
-                <span className="sec-head-rule" />
-              </div>
-              <div className="mgrid">
-                {resto.map(m => (
-                  <ModuloCard key={m.id} mod={m} tieneAcceso={tieneAcceso(m.id)} actividad={actividad[m.id]} />
-                ))}
-              </div>
-            </section>
-          )}
         </div>
 
         <aside className="portal-aside">

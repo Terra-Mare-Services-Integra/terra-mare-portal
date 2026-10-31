@@ -246,7 +246,7 @@ function FilaEdicion({ tarea, responsables, proyectos, onGuardar, onCancelar }) 
     <tr className="lean-editando">
       <td colSpan={8}>
         <div className="lean-form">
-          <label className="lean-campo"><span>Proyecto</span><input list="lean-proyectos" value={c.proyecto} onChange={set("proyecto")} /></label>
+          <CampoProyecto etiqueta="Proyecto" valor={c.proyecto} proyectos={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
           <label className="lean-campo lean-ancho"><span>Tarea</span><input value={c.titulo} onChange={set("titulo")} /></label>
           <label className="lean-campo"><span>Responsable</span><input list="lean-responsables" value={c.responsable} onChange={set("responsable")} /></label>
           <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>
@@ -278,7 +278,7 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
     <form className="lean-nueva" onSubmit={crear}>
       <div className="i-label">Nueva tarea</div>
       <div className="lean-form">
-        <label className="lean-campo"><span>Proyecto (opcional)</span><input list="lean-proyectos" value={c.proyecto} onChange={set("proyecto")} placeholder="Elegí uno o escribí uno nuevo" /></label>
+        <CampoProyecto etiqueta="Proyecto (opcional)" valor={c.proyecto} proyectos={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
         <label className="lean-campo lean-ancho"><span>Tarea</span><input value={c.titulo} onChange={set("titulo")} required /></label>
         <label className="lean-campo"><span>Responsable</span><input list="lean-responsables" value={c.responsable} onChange={set("responsable")} /></label>
         <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>
@@ -287,6 +287,35 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
       </div>
       <Listas responsables={responsables} proyectos={proyectos} />
     </form>
+  );
+}
+
+// Proyecto: desplegable con todos los del tablero y la opción de escribir uno nuevo.
+function CampoProyecto({ etiqueta, valor, proyectos, onCambio }) {
+  const [nuevo, setNuevo] = useState(false);
+  // Apenas el proyecto nuevo tiene su primera tarea, pasa a la lista y queda elegido.
+  const enLista = proyectos.includes(valor);
+  if ((nuevo && !enLista) || (valor && !enLista)) {
+    return (
+      <label className="lean-campo">
+        <span>{etiqueta} · nuevo</span>
+        <span className="lean-nuevo-proyecto">
+          <input autoFocus value={valor} placeholder="Nombre del proyecto nuevo" onChange={(e) => onCambio(e.target.value)} />
+          <button type="button" className="lean-borrar" title="Volver a la lista" aria-label="Volver a la lista de proyectos"
+            onClick={() => { setNuevo(false); onCambio(""); }}>×</button>
+        </span>
+      </label>
+    );
+  }
+  return (
+    <label className="lean-campo">
+      <span>{etiqueta}</span>
+      <select value={valor} onChange={(e) => { setNuevo(e.target.value === "__nuevo"); onCambio(e.target.value === "__nuevo" ? "" : e.target.value); }}>
+        <option value="">Sin proyecto</option>
+        {proyectos.map((p) => <option key={p} value={p}>{p}</option>)}
+        <option value="__nuevo">+ Nuevo proyecto…</option>
+      </select>
+    </label>
   );
 }
 

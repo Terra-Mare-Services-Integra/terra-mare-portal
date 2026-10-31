@@ -76,3 +76,5 @@
   .lean-tab-nuevo{ margin-left:0; }
   .lean-filtros .btn{ margin-left:0; }
 }
+.lean-nuevo-proyecto{ display:flex; align-items:center; gap:4px; }
+.lean-nuevo-proyecto input{ flex:1; }

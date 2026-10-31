@@ -278,7 +278,7 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
     <form className="lean-nueva" onSubmit={crear}>
       <div className="i-label">Nueva tarea</div>
       <div className="lean-form">
-        <label className="lean-campo"><span>Proyecto (opcional)</span><input list="lean-proyectos" value={c.proyecto} onChange={set("proyecto")} /></label>
+        <label className="lean-campo"><span>Proyecto (opcional)</span><input list="lean-proyectos" value={c.proyecto} onChange={set("proyecto")} placeholder="Elegí uno o escribí uno nuevo" /></label>
         <label className="lean-campo lean-ancho"><span>Tarea</span><input value={c.titulo} onChange={set("titulo")} required /></label>
         <label className="lean-campo"><span>Responsable</span><input list="lean-responsables" value={c.responsable} onChange={set("responsable")} /></label>
         <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>

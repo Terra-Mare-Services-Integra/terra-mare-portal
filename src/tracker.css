@@ -78,3 +78,17 @@
 }
 .lean-nuevo-proyecto{ display:flex; align-items:center; gap:4px; }
 .lean-nuevo-proyecto input{ flex:1; }
+
+/* ─── ADMINISTRACIÓN ─── */
+.admin-tabla td, .admin-tabla th{ text-align:center; }
+.admin-tabla td:first-child, .admin-tabla th:first-child{ text-align:left; }
+.admin-tabla th.admin-tablero{ white-space:normal; min-width:110px; }
+.admin-tabla input[type="checkbox"]{ width:18px; height:18px; cursor:pointer; }
+.admin-tabla input[type="checkbox"]:disabled{ cursor:not-allowed; }
+.admin-check{ height:auto; justify-content:center; font-size:13px; }
+.admin-sin td{ color:var(--n-600); }
+a.topbar-inicio{ text-decoration:none; }
+a.topbar-inicio:hover{ text-decoration:underline; }
+.topbar-admin{ text-decoration:none; display:inline-flex; align-items:center; }
+.topbar-admin.is-active{ background:rgba(255,255,255,.12); }
+.sin-acceso{ display:flex; flex-direction:column; align-items:center; gap:16px; }

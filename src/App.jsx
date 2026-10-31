@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import Tracker from "./Tracker";
+import AdminTerraMare from "./Admin";
 
 /* Instancia de esta aplicación. Se usa para filtrar los datos del portal. */
 const EMPRESA_ID     = "terramare";
@@ -14,7 +15,7 @@ const MODULOS = [
     estado:"activo", url:"https://integra.loadingmasters.terra-mare.com.ar" },
   { id:"tracker", codigo:"TR", nombre:"Tracker Lean",
     descripcion:"Tareas por tablero compartido: en curso, atrasadas y completadas.",
-    estado:"activo", url:"#/tracker", abierto:true },
+    estado:"activo", url:"#/tracker" },
 ];
 
 /* Ruta interna del portal (#/tracker). */
@@ -296,7 +297,7 @@ function Portal({ user, permisos, onLogout }) {
   }, [user.id]);
 
   const ruta = useRuta();
-  const tieneAcceso = (id) => !permisos || permisos.includes(id) || MODULOS.find(m => m.id === id)?.abierto;
+  const tieneAcceso = (id) => permisos.admin || permisos.modulos.includes(id);
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
@@ -308,7 +309,7 @@ function Portal({ user, permisos, onLogout }) {
       <header className="topbar">
         <img src="/integra-isotipo-white.svg" alt="INTEGRA" className="topbar-iso" />
         <span className="topbar-div" />
-        <span className="topbar-company">{EMPRESA_NOMBRE}</span>
+        <a className="topbar-company topbar-inicio" href="#" title="Volver al inicio de Terra Mare">{EMPRESA_NOMBRE}</a>
         <input
           className="topbar-search" type="search" disabled
           placeholder="Buscar requisición, proyecto, buque o documento"
@@ -328,11 +329,15 @@ function Portal({ user, permisos, onLogout }) {
               <span className="topbar-role">{perfil?.rol ? perfil.rol.toUpperCase() : "SIN ROL ASIGNADO"}</span>
             </span>
           </div>
+          {permisos.admin && (
+            <a className={`topbar-exit topbar-admin ${ruta === "#/admin" ? "is-active" : ""}`} href={ruta === "#/admin" ? "#" : "#/admin"}>Administración</a>
+          )}
           <button className="topbar-exit" onClick={onLogout}>Cerrar sesión</button>
         </div>
       </header>
 
-      {ruta === "#/tracker" ? <Tracker user={user} /> : <>
+      {ruta === "#/admin" && permisos.admin ? <AdminTerraMare modulos={MODULOS} /> :
+       ruta === "#/tracker" && tieneAcceso("tracker") ? <Tracker user={user} /> : <>
       <div className="brandstrip">
         <img src="/terramare-azul.png" alt="TERRAMARE" className="brandstrip-logo" />
         <span className="brandstrip-div" />
@@ -508,14 +513,21 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Acceso a la instancia: 'terramare' en user_roles.empresas. Módulos: tm_accesos. Admins: tm_admins.
   const loadPermisos = async (userId) => {
     try {
-      const { data, error } = await supabase
-        .from("user_roles").select("modulos").eq("user_id", userId).maybeSingle();
-      if (error) console.error("Error cargando permisos:", error.message);
-      setPermisos(data?.modulos?.length > 0 ? data.modulos : null);
+      const [roles, accesos, admin] = await Promise.all([
+        supabase.from("user_roles").select("empresas").eq("user_id", userId).maybeSingle(),
+        supabase.from("tm_accesos").select("modulos").eq("user_id", userId).maybeSingle(),
+        supabase.rpc("tm_es_admin"),
+      ]);
+      setPermisos({
+        admin: admin.data === true,
+        terramare: (roles.data?.empresas ?? []).includes(EMPRESA_ID),
+        modulos: accesos.data?.modulos ?? [],
+      });
     } catch {
-      setPermisos(null);
+      setPermisos({ admin: false, terramare: false, modulos: [] });
     } finally {
       setLoading(false);
     }
@@ -532,7 +544,15 @@ export default function App() {
     </div>
   );
 
-  return session
-    ? <Portal user={session.user} permisos={permisos} onLogout={handleLogout} />
-    : <LoginPage />;
+  if (!session) return <LoginPage />;
+  if (!permisos || (!permisos.terramare && !permisos.admin)) return (
+    <div className="loading-page">
+      <div className="loading-inner sin-acceso">
+        <img src="/terramare-blanco.png" alt="TERRAMARE" />
+        <div className="loading-text">Tu cuenta no tiene acceso a Terra Mare</div>
+        <button className="btn btn-on-navy" onClick={handleLogout}>Cerrar sesión</button>
+      </div>
+    </div>
+  );
+  return <Portal user={session.user} permisos={permisos} onLogout={handleLogout} />;
 }

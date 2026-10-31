@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
+import Tracker from "./Tracker";
 
 /* Instancia de esta aplicación. Se usa para filtrar los datos del portal. */
 const EMPRESA_ID     = "terramare";
@@ -11,7 +12,21 @@ const MODULOS = [
   { id:"loading-masters", codigo:"LM", nombre:"VMOS Loading Masters",
     descripcion:"Certificación mensual del servicio CO&C a VMOS y emisión de proformas.",
     estado:"activo", url:"https://integra.loadingmasters.terra-mare.com.ar" },
+  { id:"tracker", codigo:"TR", nombre:"Tracker Lean",
+    descripcion:"Tareas por tablero compartido: en curso, atrasadas y completadas.",
+    estado:"activo", url:"#/tracker", abierto:true },
 ];
+
+/* Ruta interna del portal (#/tracker). */
+function useRuta() {
+  const [ruta, setRuta] = useState(() => window.location.hash);
+  useEffect(() => {
+    const cambio = () => { setRuta(window.location.hash); window.scrollTo(0, 0); };
+    window.addEventListener("hashchange", cambio);
+    return () => window.removeEventListener("hashchange", cambio);
+  }, []);
+  return ruta;
+}
 
 const NOTA_ESTADO = {
   "sin-acceso": "ACCESO NO AUTORIZADO",
@@ -280,7 +295,8 @@ function Portal({ user, permisos, onLogout }) {
     return () => { vivo = false; };
   }, [user.id]);
 
-  const tieneAcceso = (id) => !permisos || permisos.includes(id);
+  const ruta = useRuta();
+  const tieneAcceso = (id) => !permisos || permisos.includes(id) || MODULOS.find(m => m.id === id)?.abierto;
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
@@ -316,6 +332,7 @@ function Portal({ user, permisos, onLogout }) {
         </div>
       </header>
 
+      {ruta === "#/tracker" ? <Tracker user={user} /> : <>
       <div className="brandstrip">
         <img src="/terramare-azul.png" alt="TERRAMARE" className="brandstrip-logo" />
         <span className="brandstrip-div" />
@@ -453,6 +470,7 @@ function Portal({ user, permisos, onLogout }) {
           </div>
         </aside>
       </div>
+      </>}
 
       <footer className="portal-foot">
         <div className="portal-foot-left">

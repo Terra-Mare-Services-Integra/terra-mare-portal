@@ -25,13 +25,19 @@ const ORDEN = { atrasada: 0, en_curso: 1, completada: 2 };
 
 const ok = ({ data, error }) => { if (error) throw error; return data; };
 
+// Nombres de proyecto comparables: sin mayúsculas, acentos ni espacios de más.
+const clave = (p) => p.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+// Si el proyecto ya existe con otra escritura, se usa el nombre existente.
+const estandarizar = (p, proyectos) => (p.trim() ? proyectos.find((x) => clave(x) === clave(p)) ?? p.trim() : "");
+
 export default function Tracker({ user }) {
   const email = user.email.toLowerCase();
   const [tableros, setTableros] = useState(null);
   const [activo, setActivo] = useState(() => { try { return localStorage.getItem("lean-tablero"); } catch { return null; } });
   const [error, setError] = useState("");
 
-  const leerTableros = async () => ok(await supabase.from("lean_tableros").select("id, nombre, creado_por").order("created_at"));
+  const leerTableros = async () => ok(await supabase.from("lean_tableros").select("id, nombre, creado_por, principal").order("created_at"))
+    .sort((a, b) => Number(b.principal) - Number(a.principal));
   const aplicarTableros = (t) => {
     setTableros(t);
     setActivo((a) => (t.some((x) => x.id === a) ? a : t[0]?.id ?? null));
@@ -80,14 +86,16 @@ export default function Tracker({ user }) {
         <div className="aside-empty">Todavía no sos miembro de ningún tablero. Creá uno o pedile a quien lo administra que te sume.</div>
       )}
       {activo && tableros?.some((t) => t.id === activo) && (
-        <Tablero key={activo} tablero={tableros.find((t) => t.id === activo)} email={email} onCambioTableros={cargarTableros} />
+        <Tablero key={activo} tablero={tableros.find((t) => t.id === activo)} tableros={tableros} email={email} onCambioTableros={cargarTableros} />
       )}
     </div>
   );
 }
 
-function Tablero({ tablero, email, onCambioTableros }) {
+function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [tareas, setTareas] = useState(null);
+  const [proyectosPrincipal, setProyectosPrincipal] = useState([]);
+  const [filtroTablero, setFiltroTablero] = useState("");
   const [miembros, setMiembros] = useState([]);
   const [filtroResp, setFiltroResp] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("");
@@ -97,14 +105,21 @@ function Tablero({ tablero, email, onCambioTableros }) {
   const [error, setError] = useState("");
   const hoy = hoyIso();
 
+  const principal = tableros.find((t) => t.principal);
   const leer = async () => {
-    const [t, m] = await Promise.all([
-      supabase.from("lean_tareas").select("*").eq("tablero_id", tablero.id).order("fin_tentativa", { ascending: true, nullsFirst: false }),
+    const consulta = supabase.from("lean_tareas").select("*");
+    const [t, m, p] = await Promise.all([
+      (tablero.principal ? consulta : consulta.eq("tablero_id", tablero.id)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
       supabase.from("lean_miembros").select("email, nombre, rol").eq("tablero_id", tablero.id).order("nombre"),
+      principal && !tablero.principal ? supabase.from("lean_tareas").select("proyecto").eq("tablero_id", principal.id) : { data: [] },
     ]);
-    return [ok(t), ok(m)];
+    return [ok(t), ok(m), ok(p)];
   };
-  const aplicar = ([t, m]) => { setTareas(t); setMiembros(m); };
+  const aplicar = ([t, m, p]) => {
+    setTareas(t);
+    setMiembros(m);
+    setProyectosPrincipal([...new Set(p.map((x) => x.proyecto).filter(Boolean))]);
+  };
   const cargar = async () => {
     try { aplicar(await leer()); } catch (e) { setError(e.message); }
   };
@@ -121,10 +136,16 @@ function Tablero({ tablero, email, onCambioTableros }) {
   const conEstado = useMemo(() => (tareas ?? []).map((t) => ({ ...t, estado: estadoTarea(t, hoy) })), [tareas, hoy]);
   const cuenta = (e) => conEstado.filter((t) => t.estado === e).length;
   const responsables = [...new Set([...miembros.map((m) => m.nombre || m.email), ...conEstado.map((t) => t.responsable)].filter(Boolean))].sort();
-  const proyectos = [...new Set(conEstado.map((t) => t.proyecto).filter(Boolean))].sort();
+  const proyectos = [...proyectosPrincipal, ...conEstado.map((t) => t.proyecto)]
+    .filter(Boolean)
+    .reduce((lista, p) => (lista.some((x) => clave(x) === clave(p)) ? lista : [...lista, p]), [])
+    .sort((a, b) => a.localeCompare(b));
+  const nombreTablero = (id) => tableros.find((t) => t.id === id)?.nombre ?? "otro tablero";
+  const otrosTableros = tablero.principal ? [...new Set(conEstado.map((t) => t.tablero_id))].filter((id) => id !== tablero.id) : [];
 
   const visibles = conEstado
     .filter((t) => !filtroResp || t.responsable === filtroResp)
+    .filter((t) => !filtroTablero || t.tablero_id === filtroTablero)
     .filter((t) => (filtroEstado ? t.estado === filtroEstado : verCompletadas || t.estado !== "completada"))
     .sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || (a.fin_tentativa ?? "9999").localeCompare(b.fin_tentativa ?? "9999"));
   const grupos = Object.entries(visibles.reduce((g, t) => ((g[t.proyecto || ""] ??= []).push(t), g), {}))
@@ -144,7 +165,7 @@ function Tablero({ tablero, email, onCambioTableros }) {
       {error && <div className="alert" role="alert"><div className="alert-label">Error</div><div className="alert-text">{error}</div></div>}
 
       <NuevaTarea responsables={responsables} proyectos={proyectos} hoy={hoy}
-        onCrear={(t) => accion(async () => ok(await supabase.from("lean_tareas").insert({ ...t, tablero_id: tablero.id })))} />
+        onCrear={(t) => accion(async () => ok(await supabase.from("lean_tareas").insert({ ...t, proyecto: estandarizar(t.proyecto, proyectos), tablero_id: tablero.id })))} />
 
       <div className="lean-filtros">
         <label className="lean-campo">
@@ -154,6 +175,16 @@ function Tablero({ tablero, email, onCambioTableros }) {
             {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
+        {otrosTableros.length > 0 && (
+          <label className="lean-campo">
+            <span>Creada en</span>
+            <select value={filtroTablero} onChange={(e) => setFiltroTablero(e.target.value)}>
+              <option value="">Todos los tableros</option>
+              <option value={tablero.id}>{tablero.nombre}</option>
+              {otrosTableros.map((id) => <option key={id} value={id}>{nombreTablero(id)}</option>)}
+            </select>
+          </label>
+        )}
         <label className="lean-check">
           <input type="checkbox" checked={verCompletadas} disabled={!!filtroEstado} onChange={(e) => setVerCompletadas(e.target.checked)} />
           Mostrar completadas
@@ -185,9 +216,9 @@ function Tablero({ tablero, email, onCambioTableros }) {
                 {lista.map((t) => editando === t.id ? (
                   <FilaEdicion key={t.id} tarea={t} responsables={responsables} proyectos={proyectos}
                     onCancelar={() => setEditando(null)}
-                    onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update(c).eq("id", t.id)); setEditando(null); })} />
+                    onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update({ ...c, proyecto: estandarizar(c.proyecto, proyectos) }).eq("id", t.id)); setEditando(null); })} />
                 ) : (
-                  <Fila key={t.id} t={t} hoy={hoy}
+                  <Fila key={t.id} t={t} hoy={hoy} origen={t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
                     onEditar={() => setEditando(t.id)}
                     onCompletar={() => accion(async () => ok(await supabase.from("lean_tareas").update({ completada_el: t.completada_el ? null : hoy }).eq("id", t.id)))}
                     onBorrar={() => confirm(`¿Borrar la tarea "${t.titulo}"?`) && accion(async () => ok(await supabase.from("lean_tareas").delete().eq("id", t.id)))} />
@@ -214,13 +245,13 @@ function Kpi({ estado, n, onClick, activo }) {
   );
 }
 
-function Fila({ t, hoy, onEditar, onCompletar, onBorrar }) {
+function Fila({ t, hoy, origen, onEditar, onCompletar, onBorrar }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
   return (
     <tr className={`lean-fila lean-fila--${t.estado}`}>
       <td><span className={`pill ${ESTADOS[t.estado].clase}`}>{ESTADOS[t.estado].nombre}</span></td>
-      <td className="lean-titulo">{t.titulo}</td>
+      <td className="lean-titulo">{t.titulo}{origen && <div className="lean-origen">Creada en {origen}</div>}</td>
       <td>{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
       <td className="mono">{fmt(t.inicio)}</td>
       <td className="mono">{fmt(t.fin_tentativa)}{t.completada_el && <div className="lean-sub">Completada {fmt(t.completada_el)}</div>}</td>

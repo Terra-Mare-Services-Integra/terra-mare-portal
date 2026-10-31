@@ -101,6 +101,7 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [filtroEstado, setFiltroEstado] = useState("");
   const [verCompletadas, setVerCompletadas] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [compartiendo, setCompartiendo] = useState(null);
   const [verMiembros, setVerMiembros] = useState(false);
   const [error, setError] = useState("");
   const hoy = hoyIso();
@@ -109,7 +110,7 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const leer = async () => {
     const consulta = supabase.from("lean_tareas").select("*");
     const [t, m, p] = await Promise.all([
-      (tablero.principal ? consulta : consulta.eq("tablero_id", tablero.id)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
+      (tablero.principal ? consulta : consulta.or(`tablero_id.eq.${tablero.id},compartida_con.cs.{${tablero.id}}`)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
       supabase.from("lean_miembros").select("email, nombre, rol").eq("tablero_id", tablero.id).order("nombre"),
       principal && !tablero.principal ? supabase.from("lean_tareas").select("proyecto").eq("tablero_id", principal.id) : { data: [] },
     ]);
@@ -218,7 +219,13 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                     onCancelar={() => setEditando(null)}
                     onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update({ ...c, proyecto: estandarizar(c.proyecto, proyectos) }).eq("id", t.id)); setEditando(null); })} />
                 ) : (
-                  <Fila key={t.id} t={t} hoy={hoy} origen={t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
+                  <Fila key={t.id} t={t} hoy={hoy}
+                    origen={tablero.principal && t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
+                    compartidaCon={tablero.principal ? (t.compartida_con ?? []).map(nombreTablero) : []}
+                    compartiendo={compartiendo === t.id}
+                    destinos={tablero.principal ? tableros.filter((x) => !x.principal && x.id !== t.tablero_id) : []}
+                    onCompartir={(ids) => accion(async () => ok(await supabase.from("lean_tareas").update({ compartida_con: ids }).eq("id", t.id)))}
+                    onAbrirCompartir={() => setCompartiendo(compartiendo === t.id ? null : t.id)}
                     onEditar={() => setEditando(t.id)}
                     onCompletar={() => accion(async () => ok(await supabase.from("lean_tareas").update({ completada_el: t.completada_el ? null : hoy }).eq("id", t.id)))}
                     onBorrar={() => confirm(`¿Borrar la tarea "${t.titulo}"?`) && accion(async () => ok(await supabase.from("lean_tareas").delete().eq("id", t.id)))} />
@@ -245,13 +252,24 @@ function Kpi({ estado, n, onClick, activo }) {
   );
 }
 
-function Fila({ t, hoy, origen, onEditar, onCompletar, onBorrar }) {
+// Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
+function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir, onEditar, onCompletar, onBorrar }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
+  const compartida = t.compartida_con ?? [];
   return (
+    <>
     <tr className={`lean-fila lean-fila--${t.estado}`}>
       <td><span className={`pill ${ESTADOS[t.estado].clase}`}>{ESTADOS[t.estado].nombre}</span></td>
-      <td className="lean-titulo">{t.titulo}{origen && <div className="lean-origen">Creada en {origen}</div>}</td>
+      <td className="lean-titulo">
+        {t.titulo}
+        {(origen || compartidaCon.length > 0) && (
+          <div className="lean-senales">
+            {origen && <span className="lean-chip lean-chip--origen" title="La tarea se creó en otro tablero">↙ De {origen}</span>}
+            {compartidaCon.map((n) => <span key={n} className="lean-chip lean-chip--compartida" title="También aparece en este tablero">↗ En {n}</span>)}
+          </div>
+        )}
+      </td>
       <td>{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
       <td className="mono">{fmt(t.inicio)}</td>
       <td className="mono">{fmt(t.fin_tentativa)}{t.completada_el && <div className="lean-sub">Completada {fmt(t.completada_el)}</div>}</td>
@@ -260,9 +278,29 @@ function Fila({ t, hoy, origen, onEditar, onCompletar, onBorrar }) {
       <td className="lean-acciones">
         <button type="button" className="btn btn-secondary lean-chico" onClick={onCompletar}>{t.completada_el ? "Reabrir" : "Completar"}</button>
         <button type="button" className="btn btn-secondary lean-chico" onClick={onEditar}>Editar</button>
+        {destinos.length > 0 && (
+          <button type="button" className={`btn btn-secondary lean-chico ${compartiendo ? "is-active" : ""}`} onClick={onAbrirCompartir}
+            aria-expanded={compartiendo}>Compartir</button>
+        )}
         <button type="button" className="lean-borrar" onClick={onBorrar} aria-label="Borrar tarea" title="Borrar">×</button>
       </td>
     </tr>
+    {compartiendo && (
+      <tr className="lean-compartir">
+        <td colSpan={8}>
+          <span className="lean-compartir-l">Mostrar esta tarea también en:</span>
+          {destinos.map((d) => (
+            <label key={d.id} className="lean-check">
+              <input type="checkbox" checked={compartida.includes(d.id)}
+                onChange={() => onCompartir(compartida.includes(d.id) ? compartida.filter((x) => x !== d.id) : [...compartida, d.id])} />
+              {d.nombre}
+            </label>
+          ))}
+          <span className="lean-ayuda">Ahí se ve como una tarea más del tablero: lo que se cambie en uno se ve en todos.</span>
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

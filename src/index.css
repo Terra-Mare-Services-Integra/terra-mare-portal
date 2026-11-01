@@ -530,3 +530,20 @@ a.mcard:hover{border-color:var(--navy-integra);text-decoration:none}
 .portal-foot-right{display:flex;align-items:center;gap:20px}
 .portal-foot span{font:500 11px/1.2 var(--font-mono);letter-spacing:.06em;color:var(--n-700)}
 .portal-foot a{font:500 13px/1.2 var(--font-sans)}
+
+/* ── celular: barra y franja compactas, sin desborde horizontal ───────────── */
+@media (max-width:900px){
+  .topbar{ gap:var(--space-3); padding:0 var(--space-3); }
+  .topbar-search, .topbar-icon, .topbar-id > span:last-child, .topbar-tools > .topbar-div{ display:none; }
+  .topbar-company{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .topbar-tools{ gap:var(--space-3); flex:0 0 auto; }
+  .brandstrip{ padding:var(--space-3); gap:var(--space-3); flex-wrap:wrap; }
+  .brandstrip-logo{ height:34px; }
+  .brandstrip-div{ display:none; }
+  .brandstrip-hello{ font-size:16px; }
+  .portal-body{ padding:var(--space-3); gap:var(--space-4); }
+  .site-foot{ padding:var(--space-3); flex-wrap:wrap; }
+}
+@media (max-width:420px){
+  .topbar-iso, .topbar > .topbar-div{ display:none; }
+}

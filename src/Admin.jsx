@@ -108,25 +108,25 @@ export default function AdminTerraMare() {
               const conTracker = u.portal && u.modulos.includes("tracker");
               return (
                 <tr key={u.user_id} className={u.portal || u.lm ? "" : "admin-sin"}>
-                  <td className="mono">{u.email}{ocupado && <div className="lean-sub">Guardando…</div>}</td>
-                  <td>
+                  <td className="mono admin-cuenta">{u.email}{ocupado && <div className="lean-sub">Guardando…</div>}</td>
+                  <td data-l="Portal">
                     <label className="lean-check admin-check">
                       <input type="checkbox" checked={u.portal} disabled={ocupado} onChange={() => togglePortal(u)} />
                       {u.portal ? "Con acceso" : "Sin acceso"}
                     </label>
                   </td>
-                  <td>
+                  <td data-l="Loading Masters">
                     <select className="admin-select" aria-label={`Loading Masters para ${u.email}`} value={u.lm ?? ""} disabled={ocupado}
                       onChange={(e) => cambiarLm(u, e.target.value)}>
                       {ROLES_LM.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
                     </select>
                   </td>
-                  <td>
+                  <td data-l="Tracker Lean">
                     <input type="checkbox" aria-label={`Tracker para ${u.email}`} checked={conTracker}
                       disabled={ocupado || !u.portal} onChange={() => toggleTracker(u)} title={u.portal ? "" : "Primero dale acceso al portal"} />
                   </td>
                   {tableros.map((t) => (
-                    <td key={t.id}>
+                    <td key={t.id} data-l={`Tablero ${t.nombre}`}>
                       <input type="checkbox" aria-label={`Tablero ${t.nombre} para ${u.email}`} checked={u.tableros.includes(t.id)}
                         disabled={ocupado || !conTracker} onChange={() => toggleTablero(u, t)}
                         title={conTracker ? "" : "Primero habilitá el Tracker Lean"} />

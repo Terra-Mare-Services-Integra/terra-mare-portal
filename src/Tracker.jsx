@@ -288,7 +288,7 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
   return (
     <>
     <tr className={`lean-fila lean-fila--${t.estado}`}>
-      <td><span className={`pill ${ESTADOS[t.estado].clase}`}>{ESTADOS[t.estado].nombre}</span></td>
+      <td className="lean-c-estado"><span className={`pill ${ESTADOS[t.estado].clase}`}>{ESTADOS[t.estado].nombre}</span></td>
       <td className="lean-titulo">
         {t.titulo}
         {(origen || compartidaCon.length > 0) && (
@@ -303,11 +303,11 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
           </div>
         )}
       </td>
-      <td>{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
-      <td className="mono">{fmt(t.inicio)}</td>
-      <td className="mono">{fmt(t.fin_tentativa)}{t.completada_el && <div className="lean-sub">Completada {fmt(t.completada_el)}</div>}</td>
-      <td className={`n mono ${dias < 0 ? "lean-rojo" : ""}`}>{dias == null ? "—" : dias < 0 ? `${-dias} de atraso` : dias === 0 ? "hoy" : dias}</td>
-      <td className="lean-nota">{faltaImpedimento ? <span className="lean-falta">Falta el impedimento</span> : t.nota || "—"}</td>
+      <td className="lean-c-resp" data-l="Responsable">{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
+      <td className="mono lean-c-inicio" data-l="Inicio">{fmt(t.inicio)}</td>
+      <td className="mono lean-c-fin" data-l="Fin tentativa">{fmt(t.fin_tentativa)}{t.completada_el && <div className="lean-sub">Completada {fmt(t.completada_el)}</div>}</td>
+      <td className={`n mono lean-c-dias ${dias < 0 ? "lean-rojo" : ""}`}>{dias == null ? "—" : dias < 0 ? `${-dias} de atraso` : dias === 0 ? "hoy" : dias}</td>
+      <td className="lean-nota" data-l="Impedimento / nota">{faltaImpedimento ? <span className="lean-falta">Falta el impedimento</span> : t.nota || "—"}</td>
       <td className="lean-acciones">
         <button type="button" className="btn btn-secondary lean-chico" onClick={onCompletar}>{t.completada_el ? "Reabrir" : "Completar"}</button>
         <button type="button" className="btn btn-secondary lean-chico" onClick={onEditar}>Editar</button>

@@ -112,3 +112,59 @@ a.topbar-inicio:hover{ text-decoration:underline; }
 .lean-adjuntos-lista li{ display:flex; align-items:center; gap:10px; }
 .lean-subir{ cursor:pointer; }
 .lean-subir.is-disabled{ opacity:.6; pointer-events:none; }
+
+/* ─── CELULAR (vertical y apaisado): las tablas pasan a tarjetas, sin scroll horizontal ─── */
+@media (max-width:900px){
+  .lean{ padding:var(--space-3); gap:var(--space-3); }
+  .lean-title{ font-size:20px; }
+  .lean-kpis{ grid-template-columns:repeat(4, minmax(0, 1fr)); gap:var(--space-2); }
+  .lean-kpi{ padding:var(--space-2); border-left-width:3px; }
+  .lean-kpi-n{ font-size:20px; }
+  .lean-kpi-l{ font-size:9px; letter-spacing:.04em; }
+  .lean-tab{ height:34px; padding:0 10px; font-size:13px; }
+  .lean-nueva, .lean-miembros{ padding:var(--space-3); }
+  .lean-campo, .lean-campo.lean-ancho, .lean-filtros .lean-campo{ flex:1 1 140px; }
+  .lean-form-acciones{ flex-wrap:wrap; }
+
+  .lean-scroll{ overflow:visible; border:0; background:none; }
+  .lean-tabla, .lean-tabla tbody, .lean-tabla tr, .lean-tabla td{ display:block; }
+  .lean-tabla thead{ display:none; }
+  .lean-tabla tbody{ display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap:var(--space-2); margin-bottom:var(--space-3); }
+  .lean-tabla td{ border:0; padding:0; }
+  .lean-tabla .lean-c-inicio, .lean-tabla .lean-c-fin{ display:block; }
+  .lean-tabla tbody > tr:not(.lean-fila){ grid-column:1 / -1; }
+  .lean-grupo td{ background:none; padding:4px 0 0; }
+
+  .lean-tabla tr.lean-fila{ display:grid; grid-template-columns:1fr 1fr; grid-template-areas:
+      "estado dias" "titulo titulo" "resp resp" "inicio fin" "nota nota" "acc acc";
+    gap:6px 12px; padding:var(--space-3); background:var(--surface-panel); border:1px solid var(--border-divider); border-radius:var(--radius); }
+  .lean-fila--atrasada{ background:var(--state-error-bg); }
+  .lean-c-estado{ grid-area:estado; }
+  .lean-tabla .lean-c-dias{ grid-area:dias; align-self:center; }
+  .lean-tabla .lean-titulo{ grid-area:titulo; min-width:0; font-size:15px; }
+  .lean-c-resp{ grid-area:resp; }
+  .lean-c-inicio{ grid-area:inicio; }
+  .lean-c-fin{ grid-area:fin; }
+  .lean-tabla .lean-nota{ grid-area:nota; min-width:0; }
+  .lean-tabla .lean-acciones .lean-chico{ padding:0 8px; }
+  .lean-tabla .lean-acciones{ grid-area:acc; display:flex; flex-wrap:wrap; gap:6px; white-space:normal; text-align:left; padding-top:4px; border-top:1px solid var(--border-divider); }
+  .lean-acciones .btn + .btn{ margin-left:0; }
+  .lean-acciones .lean-borrar{ margin-left:auto; }
+  .lean-tabla td[data-l]::before{ content:attr(data-l); display:block; font:500 10px/1.2 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); margin-bottom:2px; }
+  .lean-tabla .lean-c-resp, .lean-tabla .lean-nota{ font-size:13px; }
+
+  .lean-editando td, .lean-compartir td, .lean-panel-adjuntos td{ padding:var(--space-3); border-radius:var(--radius); }
+  .lean-compartir td > *{ display:flex; margin:0 0 6px; }
+  .lean-adjunto{ max-width:100%; }
+  .lean-adjuntos-lista li{ flex-wrap:wrap; gap:4px 10px; }
+
+  /* Miembros y administración: una tarjeta por cuenta, cada dato con su etiqueta */
+  .lean-miembros .lean-tabla tr, .admin-tabla tr{ background:var(--surface-panel); border:1px solid var(--border-divider); border-radius:var(--radius); padding:var(--space-3); }
+  .lean-miembros .lean-tabla tr{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; }
+  .lean-miembros .lean-tabla td.mono{ white-space:normal; word-break:break-all; }
+  .admin-tabla td, .admin-tabla td:first-child{ display:flex; justify-content:space-between; align-items:center; gap:12px; text-align:left; padding:6px 0; border-bottom:1px solid var(--border-divider); }
+  .admin-tabla td:last-child{ border-bottom:0; }
+  .admin-tabla td.admin-cuenta{ display:block; font-weight:600; white-space:normal; word-break:break-all; padding-top:0; }
+  .admin-tabla td[data-l]::before{ margin:0; font-size:11px; }
+  .admin-check{ justify-content:flex-end; }
+}

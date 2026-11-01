@@ -102,6 +102,8 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [verCompletadas, setVerCompletadas] = useState(false);
   const [editando, setEditando] = useState(null);
   const [compartiendo, setCompartiendo] = useState(null);
+  const [adjuntos, setAdjuntos] = useState([]);
+  const [conAdjuntos, setConAdjuntos] = useState(null);
   const [verMiembros, setVerMiembros] = useState(false);
   const [error, setError] = useState("");
   const hoy = hoyIso();
@@ -109,15 +111,17 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const principal = tableros.find((t) => t.principal);
   const leer = async () => {
     const consulta = supabase.from("lean_tareas").select("*");
-    const [t, m, p] = await Promise.all([
+    const [t, m, p, a] = await Promise.all([
       (tablero.principal ? consulta : consulta.or(`tablero_id.eq.${tablero.id},compartida_con.cs.{${tablero.id}}`)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
       supabase.from("lean_miembros").select("email, nombre, rol").eq("tablero_id", tablero.id).order("nombre"),
       principal && !tablero.principal ? supabase.from("lean_tareas").select("proyecto").eq("tablero_id", principal.id) : { data: [] },
+      supabase.from("lean_adjuntos").select("*").order("created_at"),
     ]);
-    return [ok(t), ok(m), ok(p)];
+    return [ok(t), ok(m), ok(p), ok(a)];
   };
-  const aplicar = ([t, m, p]) => {
+  const aplicar = ([t, m, p, a]) => {
     setTareas(t);
+    setAdjuntos(a);
     setMiembros(m);
     setProyectosPrincipal([...new Set(p.map((x) => x.proyecto).filter(Boolean))]);
   };
@@ -223,6 +227,20 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                     origen={tablero.principal && t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
                     compartidaCon={tablero.principal ? (t.compartida_con ?? []).map(nombreTablero) : []}
                     compartiendo={compartiendo === t.id}
+                    adjuntos={adjuntos.filter((a) => a.tarea_id === t.id)}
+                    verAdjuntos={conAdjuntos === t.id}
+                    onAbrirAdjuntos={() => setConAdjuntos(conAdjuntos === t.id ? null : t.id)}
+                    onAgregarLink={(nombre, url) => accion(async () => ok(await supabase.from("lean_adjuntos").insert({ tarea_id: t.id, tipo: "link", nombre, url })))}
+                    onSubirArchivo={(archivo) => accion(async () => {
+                      const ruta = `tareas/${t.id}/${Date.now()}-${archivo.name.replace(/[^\w.\- ]+/g, "_")}`;
+                      ok(await supabase.storage.from("tracker").upload(ruta, archivo));
+                      ok(await supabase.from("lean_adjuntos").insert({ tarea_id: t.id, tipo: "archivo", nombre: archivo.name, ruta }));
+                    })}
+                    onAbrirArchivo={(a) => abrirArchivo(a).catch((e) => setError(e.message))}
+                    onQuitarAdjunto={(a) => confirm(`¿Quitar "${a.nombre}" de la tarea?`) && accion(async () => {
+                      if (a.ruta) ok(await supabase.storage.from("tracker").remove([a.ruta]));
+                      ok(await supabase.from("lean_adjuntos").delete().eq("id", a.id));
+                    })}
                     destinos={tablero.principal ? tableros.filter((x) => !x.principal && x.id !== t.tablero_id) : []}
                     onCompartir={(ids) => accion(async () => ok(await supabase.from("lean_tareas").update({ compartida_con: ids }).eq("id", t.id)))}
                     onAbrirCompartir={() => setCompartiendo(compartiendo === t.id ? null : t.id)}
@@ -243,6 +261,15 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   );
 }
 
+// Los archivos del bucket son privados: se abren con un link firmado que vence al minuto.
+async function abrirArchivo(a) {
+  const ventana = window.open("", "_blank");
+  try {
+    const { signedUrl } = ok(await supabase.storage.from("tracker").createSignedUrl(a.ruta, 60));
+    ventana.location = signedUrl;
+  } catch (e) { ventana?.close(); throw e; }
+}
+
 function Kpi({ estado, n, onClick, activo }) {
   return (
     <button type="button" className={`lean-kpi lean-kpi--${estado} ${activo ? "is-active" : ""}`} onClick={onClick} aria-pressed={activo}>
@@ -253,7 +280,8 @@ function Kpi({ estado, n, onClick, activo }) {
 }
 
 // Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
-function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir, onEditar, onCompletar, onBorrar }) {
+function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir,
+  adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
   const compartida = t.compartida_con ?? [];
@@ -269,6 +297,11 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
             {compartidaCon.map((n) => <span key={n} className="lean-chip lean-chip--compartida" title="También aparece en este tablero">↗ En {n}</span>)}
           </div>
         )}
+        {adjuntos.length > 0 && (
+          <div className="lean-adjuntos">
+            {adjuntos.map((a) => <Adjunto key={a.id} a={a} onAbrirArchivo={onAbrirArchivo} />)}
+          </div>
+        )}
       </td>
       <td>{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
       <td className="mono">{fmt(t.inicio)}</td>
@@ -278,6 +311,8 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
       <td className="lean-acciones">
         <button type="button" className="btn btn-secondary lean-chico" onClick={onCompletar}>{t.completada_el ? "Reabrir" : "Completar"}</button>
         <button type="button" className="btn btn-secondary lean-chico" onClick={onEditar}>Editar</button>
+        <button type="button" className={`btn btn-secondary lean-chico ${verAdjuntos ? "is-active" : ""}`} onClick={onAbrirAdjuntos}
+          aria-expanded={verAdjuntos} title="Links (por ejemplo, carpetas de SharePoint) y archivos">Adjuntos{adjuntos.length ? ` (${adjuntos.length})` : ""}</button>
         {destinos.length > 0 && (
           <button type="button" className={`btn btn-secondary lean-chico ${compartiendo ? "is-active" : ""}`} onClick={onAbrirCompartir}
             aria-expanded={compartiendo}>Compartir</button>
@@ -285,6 +320,10 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
         <button type="button" className="lean-borrar" onClick={onBorrar} aria-label="Borrar tarea" title="Borrar">×</button>
       </td>
     </tr>
+    {verAdjuntos && (
+      <PanelAdjuntos adjuntos={adjuntos} onAgregarLink={onAgregarLink} onSubirArchivo={onSubirArchivo}
+        onAbrirArchivo={onAbrirArchivo} onQuitar={onQuitarAdjunto} />
+    )}
     {compartiendo && (
       <tr className="lean-compartir">
         <td colSpan={8}>
@@ -301,6 +340,73 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
       </tr>
     )}
     </>
+  );
+}
+
+const esSharePoint = (url) => /sharepoint\.com|onedrive|1drv\.ms/i.test(url);
+
+function Adjunto({ a, onAbrirArchivo }) {
+  if (a.tipo === "link") {
+    return (
+      <a className="lean-adjunto" href={a.url} target="_blank" rel="noopener noreferrer" title={a.url}>
+        {esSharePoint(a.url) ? "📁" : "🔗"} {a.nombre}
+      </a>
+    );
+  }
+  return <button type="button" className="lean-adjunto" onClick={() => onAbrirArchivo(a)} title="Abrir archivo">📎 {a.nombre}</button>;
+}
+
+// Links (carpetas de SharePoint u otros) y archivos subidos al bucket privado del tracker.
+function PanelAdjuntos({ adjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitar }) {
+  const [link, setLink] = useState({ nombre: "", url: "" });
+  const [subiendo, setSubiendo] = useState(false);
+  const url = link.url.trim();
+  const valido = /^https?:\/\/\S+$/i.test(url);
+  const agregar = async (e) => {
+    e.preventDefault();
+    if (!valido) return;
+    await onAgregarLink(link.nombre.trim() || (esSharePoint(url) ? "Carpeta de SharePoint" : "Link"), url);
+    setLink({ nombre: "", url: "" });
+  };
+  const subir = async (e) => {
+    const archivos = [...e.target.files];
+    e.target.value = "";
+    setSubiendo(true);
+    for (const archivo of archivos) await onSubirArchivo(archivo);
+    setSubiendo(false);
+  };
+  return (
+    <tr className="lean-panel-adjuntos">
+      <td colSpan={8}>
+        {adjuntos.length > 0 && (
+          <ul className="lean-adjuntos-lista">
+            {adjuntos.map((a) => (
+              <li key={a.id}>
+                <Adjunto a={a} onAbrirArchivo={onAbrirArchivo} />
+                <span className="lean-sub">{a.creado_por} · {fmt(a.created_at.slice(0, 10))}</span>
+                <button type="button" className="lean-borrar" onClick={() => onQuitar(a)} aria-label={`Quitar ${a.nombre}`} title="Quitar">×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="lean-form" onSubmit={agregar}>
+          <label className="lean-campo lean-ancho"><span>Link (carpeta de SharePoint u otro)</span>
+            <input type="url" value={link.url} placeholder="https://…sharepoint.com/…" onChange={(e) => setLink({ ...link, url: e.target.value })} />
+          </label>
+          <label className="lean-campo"><span>Nombre (opcional)</span>
+            <input value={link.nombre} placeholder="Carpeta de SharePoint" onChange={(e) => setLink({ ...link, nombre: e.target.value })} />
+          </label>
+          <div className="lean-form-acciones">
+            <button className="btn btn-primary" disabled={!valido}>Agregar link</button>
+            <label className={`btn btn-secondary lean-subir ${subiendo ? "is-disabled" : ""}`}>
+              {subiendo ? "Subiendo…" : "Subir archivo"}
+              <input type="file" multiple hidden disabled={subiendo} onChange={subir} />
+            </label>
+          </div>
+        </form>
+        <p className="lean-ayuda">En SharePoint, sobre la carpeta: "Copiar vínculo", y pegalo acá. Archivos de hasta 25 MB.</p>
+      </td>
+    </tr>
   );
 }
 

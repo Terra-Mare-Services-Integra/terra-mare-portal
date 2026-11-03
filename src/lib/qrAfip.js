@@ -33,21 +33,26 @@ export function leerUrlAfip(texto) {
   }
 }
 
-// Busca el QR en la imagen a dos escalas: las fotos del celular son grandes y el QR, chico.
+// Busca un QR de AFIP en una imagen o en el cuadro actual de un video, a la escala pedida.
+function buscarQr(fuente, ancho, alto, lado) {
+  const k = Math.min(1, lado / Math.max(ancho, alto));
+  const w = Math.round(ancho * k), h = Math.round(alto * k);
+  if (!w || !h) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(fuente, 0, 0, w, h);
+  const qr = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
+  return qr && leerUrlAfip(qr.data);
+}
+
+// Foto: a dos escalas, porque las del celular son grandes y el QR, chico.
 export async function leerQrDeImagen(archivo) {
   if (!archivo.type.startsWith("image/")) return null;
   let bmp;
   try { bmp = await createImageBitmap(archivo); } catch { return null; }
-  for (const lado of [1800, 900]) {
-    const k = Math.min(1, lado / Math.max(bmp.width, bmp.height));
-    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(bmp, 0, 0, w, h);
-    const qr = jsQR(ctx.getImageData(0, 0, w, h).data, w, h);
-    const datos = qr && leerUrlAfip(qr.data);
-    if (datos) return datos;
-  }
-  return null;
+  return buscarQr(bmp, bmp.width, bmp.height, 1800) ?? buscarQr(bmp, bmp.width, bmp.height, 900);
 }
+
+// Cámara en vivo: un cuadro por llamada, a resolución media para que no trabe el celular.
+export const leerQrDeVideo = (video) => buscarQr(video, video.videoWidth, video.videoHeight, 1000);

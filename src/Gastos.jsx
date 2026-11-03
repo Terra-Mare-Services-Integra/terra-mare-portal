@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import { supabase } from "./lib/supabase";
-import { leerQrDeImagen } from "./lib/qrAfip";
+import { leerQrDeImagen, leerQrDeVideo } from "./lib/qrAfip";
 import "./tracker.css";
 import "./gastos.css";
 
@@ -299,6 +299,8 @@ function Editor({ gasto, tarjetas, gastos, archivos, onListo, onCancelar, onErro
   const [nuevos, setNuevos] = useState([]);        // archivos todavía no subidos
   const [quitados, setQuitados] = useState([]);    // archivos ya subidos que se van a borrar
   const [leyendo, setLeyendo] = useState(false);
+  const [camara, setCamara] = useState(false);
+  const capturaSistema = useRef(null);
   const [aviso, setAviso] = useState("");
   const [guardando, setGuardando] = useState(false);
   const set = (k) => (e) => setC({ ...c, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
@@ -310,14 +312,15 @@ function Editor({ gasto, tarjetas, gastos, archivos, onListo, onCancelar, onErro
   const existentes = archivos.filter((a) => !quitados.includes(a.id));
   const esComida = c.categoria === COMIDAS;
 
-  const agregarArchivos = async (lista) => {
+  // qrLeido: el que ya encontró la cámara en vivo (la foto final puede salir movida y no volver a leerse).
+  const agregarArchivos = async (lista, qrLeido = null) => {
     const files = [...lista];
     if (!files.length) return;
     setNuevos((n) => [...n, ...files]);
     setLeyendo(true);
     setAviso("");
     for (const f of files) {
-      const qr = await leerQrDeImagen(f);
+      const qr = qrLeido ?? await leerQrDeImagen(f);
       if (qr) {
         // El proveedor por CUIT: si ya se le compró antes, se reutiliza el nombre.
         const previo = gastos.find((g) => g.cuit_proveedor === qr.cuit_proveedor && g.proveedor);
@@ -392,10 +395,10 @@ function Editor({ gasto, tarjetas, gastos, archivos, onListo, onCancelar, onErro
       <section className="rg-seccion">
         <div className="rg-subtitulo">1 · Comprobante</div>
         <div className="lean-form-acciones">
-          <label className="btn btn-primary lean-subir">
-            Sacar foto
-            <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { agregarArchivos(e.target.files); e.target.value = ""; }} />
-          </label>
+          <button type="button" className="btn btn-primary"
+            onClick={() => (navigator.mediaDevices?.getUserMedia ? setCamara(true) : capturaSistema.current.click())}>Sacar foto</button>
+          <input ref={capturaSistema} type="file" accept="image/*" capture="environment" hidden
+            onChange={(e) => { agregarArchivos(e.target.files); e.target.value = ""; }} />
           <label className="btn btn-secondary lean-subir">
             Subir foto o PDF
             <input type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { agregarArchivos(e.target.files); e.target.value = ""; }} />
@@ -536,9 +539,67 @@ function Editor({ gasto, tarjetas, gastos, archivos, onListo, onCancelar, onErro
         </div>
       </div>
 
+      {camara && (
+        <Camara onCerrar={() => setCamara(false)}
+          onFoto={(foto, qr) => { setCamara(false); agregarArchivos([foto], qr); }}
+          onSinCamara={() => { setCamara(false); capturaSistema.current.click(); }} />
+      )}
+
       <datalist id="rg-centros">{centros.map((x) => <option key={x} value={x} />)}</datalist>
       <datalist id="rg-clientes">{clientes.map((x) => <option key={x} value={x} />)}</datalist>
       <datalist id="rg-proveedores">{proveedores.map((x) => <option key={x} value={x} />)}</datalist>
+    </div>
+  );
+}
+
+/* ─── CÁMARA ─────────────────────────────────────────────────────────────────
+   Abre la cámara trasera dentro de la página (no el selector de archivos del sistema) y busca el QR de
+   AFIP mientras se apunta. Si el navegador no da permiso o no hay cámara, usa la cámara del sistema. */
+function Camara({ onFoto, onCerrar, onSinCamara }) {
+  const video = useRef(null);
+  const [lista, setLista] = useState(false);
+  const [qr, setQr] = useState(null);
+  const [sinPermiso, setSinPermiso] = useState(false);
+
+  useEffect(() => {
+    let flujo, timer, vivo = true;
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+    }).then(async (s) => {
+      if (!vivo) { s.getTracks().forEach((t) => t.stop()); return; }
+      flujo = s;
+      video.current.srcObject = s;
+      await video.current.play();
+      setLista(true);
+      timer = setInterval(() => {
+        const d = video.current && leerQrDeVideo(video.current);
+        if (d) setQr(d);
+      }, 400);
+    }).catch(() => { if (vivo) setSinPermiso(true); });  // abrir el selector del sistema necesita un toque
+    return () => { vivo = false; clearInterval(timer); flujo?.getTracks().forEach((t) => t.stop()); };
+  }, []);
+
+  const capturar = () => {
+    const v = video.current;
+    const canvas = document.createElement("canvas");
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    canvas.getContext("2d").drawImage(v, 0, 0);
+    canvas.toBlob((b) => b && onFoto(new File([b], `comprobante-${Date.now()}.jpg`, { type: "image/jpeg" }), qr), "image/jpeg", 0.88);
+  };
+
+  return (
+    <div className="rg-camara" role="dialog" aria-label="Cámara">
+      <video ref={video} className="rg-camara-video" playsInline muted />
+      {sinPermiso && <button type="button" className="btn btn-primary rg-camara-alterna" onClick={onSinCamara}>Usar la cámara del sistema</button>}
+      <div className={`rg-camara-estado ${qr ? "is-ok" : ""}`}>
+        {sinPermiso ? "No se pudo abrir la cámara: revisá el permiso del navegador o usá la del sistema"
+          : !lista ? "Abriendo la cámara…" : qr ? `QR de AFIP leído · ${dinero(qr.importe, qr.moneda)}` : "Encuadrá el comprobante completo, con el QR a la vista"}
+      </div>
+      <div className="rg-camara-barra">
+        <button type="button" className="rg-camara-texto" onClick={onCerrar}>Cancelar</button>
+        <button type="button" className="rg-camara-disparo" aria-label="Sacar la foto" disabled={!lista} onClick={capturar} />
+        <button type="button" className="rg-camara-texto" onClick={onSinCamara}>Cámara del sistema</button>
+      </div>
     </div>
   );
 }

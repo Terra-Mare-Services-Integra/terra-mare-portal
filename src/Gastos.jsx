@@ -58,17 +58,19 @@ export default function Gastos({ user, permisos }) {
   const [gastos, setGastos] = useState(null);
   const [tarjetas, setTarjetas] = useState([]);
   const [archivos, setArchivos] = useState([]);
+  const [cuentas, setCuentas] = useState([]);   // alias/CBU: la base solo devuelve la propia (o todas a tesorería)
   const [error, setError] = useState("");
 
   const leer = async () => {
-    const [g, t, a] = await Promise.all([
+    const [g, t, a, c] = await Promise.all([
       supabase.from("rg_gastos").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
       supabase.from("rg_tarjetas").select("*").order("nombre"),
       supabase.from("rg_archivos").select("*").order("created_at"),
+      supabase.from("rg_cuentas").select("*"),
     ]);
-    return [ok(g), ok(t), ok(a)];
+    return [ok(g), ok(t), ok(a), ok(c)];
   };
-  const aplicar = ([g, t, a]) => { setGastos(g); setTarjetas(t); setArchivos(a); };
+  const aplicar = ([g, t, a, c]) => { setGastos(g); setTarjetas(t); setArchivos(a); setCuentas(c); };
   const cargar = async () => { try { aplicar(await leer()); } catch (e) { setError(e.message); } };
   useEffect(() => { leer().then(aplicar, (e) => setError(e.message)); }, []);
 
@@ -79,7 +81,7 @@ export default function Gastos({ user, permisos }) {
   };
   const archivosDe = (id) => archivos.filter((a) => a.gasto_id === id);
   const enviados = gastos?.filter((g) => g.estado === "enviado").length ?? 0;
-  const comun = { gastos: gastos ?? [], tarjetas, archivosDe, accion, email };
+  const comun = { gastos: gastos ?? [], tarjetas, archivosDe, accion, email, cuentas };
 
   return (
     <div className="lean">
@@ -118,7 +120,7 @@ export default function Gastos({ user, permisos }) {
 }
 
 /* ─── MIS GASTOS ─────────────────────────────────────────────────────────── */
-function MisGastos({ gastos, tarjetas, archivosDe, accion, email, onError }) {
+function MisGastos({ gastos, tarjetas, archivosDe, accion, email, cuentas, onError }) {
   const mios = gastos.filter((g) => g.email === email);
   const [editando, setEditando] = useState(null);   // null | "nuevo" | gasto
   const [abierto, setAbierto] = useState(null);
@@ -146,6 +148,8 @@ function MisGastos({ gastos, tarjetas, archivosDe, accion, email, onError }) {
         <button type="button" className="btn btn-primary" onClick={() => setEditando("nuevo")}>+ Cargar gasto</button>
       </div>
 
+      <MiCuenta cuenta={cuentas.find((c) => c.email === email)} accion={accion} />
+
       {!mios.length ? <div className="aside-empty">Todavía no cargaste gastos.</div> : (
         <ListaGastos gastos={mios} archivosDe={archivosDe} abierto={abierto} setAbierto={setAbierto} tarjetas={tarjetas}
           acciones={(g) => ["borrador", "rechazado"].includes(g.estado) && <>
@@ -159,6 +163,64 @@ function MisGastos({ gastos, tarjetas, archivosDe, accion, email, onError }) {
           </>} />
       )}
     </div>
+  );
+}
+
+/* ─── MIS DATOS PARA COBRAR ──────────────────────────────────────────────────
+   Opcionales. Los ve solo la persona y tesorería (lo resuelve la base, tabla rg_cuentas). */
+const ALIAS_OK = /^[A-Za-z0-9.-]{6,20}$/;
+
+function MiCuenta({ cuenta, accion }) {
+  const [abierto, setAbierto] = useState(false);
+  const [c, setC] = useState({ alias: "", cbu: "", titular: "" });
+  const abrir = () => { setC({ alias: cuenta?.alias ?? "", cbu: cuenta?.cbu ?? "", titular: cuenta?.titular ?? "" }); setAbierto(true); };
+  const cbu = c.cbu.replace(/\D/g, "");
+  const errores = [c.alias && !ALIAS_OK.test(c.alias.trim()) && "el alias va de 6 a 20 letras, números, puntos o guiones",
+    cbu && cbu.length !== 22 && "el CBU/CVU tiene 22 números"].filter(Boolean);
+
+  const guardar = (e) => {
+    e.preventDefault();
+    accion(async () => {
+      const fila = { alias: c.alias.trim(), cbu, titular: c.titular.trim(), updated_at: new Date().toISOString() };
+      if (cuenta) ok(await supabase.from("rg_cuentas").update(fila).eq("email", cuenta.email));
+      else ok(await supabase.from("rg_cuentas").insert(fila));
+      setAbierto(false);
+    });
+  };
+  const borrar = () => confirm("¿Borrar tus datos para cobrar?") && accion(async () => {
+    ok(await supabase.from("rg_cuentas").delete().eq("email", cuenta.email));
+    setAbierto(false);
+  });
+
+  if (!abierto) {
+    return (
+      <div className="rg-cuenta">
+        <span>
+          {cuenta?.alias || cuenta?.cbu
+            ? <>Cobrás los reembolsos en <strong className="mono">{cuenta.alias || cuenta.cbu}</strong></>
+            : "Opcional: cargá tu alias o CBU para que tesorería te pague los reembolsos."}
+          <span className="lean-ayuda"> Solo lo ven vos y tesorería.</span>
+        </span>
+        <button type="button" className="btn btn-secondary lean-chico" onClick={abrir}>{cuenta ? "Cambiar" : "Cargar alias o CBU"}</button>
+      </div>
+    );
+  }
+  return (
+    <form className="lean-nueva" onSubmit={guardar}>
+      <div className="rg-subtitulo">Mis datos para cobrar reembolsos</div>
+      <p className="lean-ayuda">Son opcionales y solo los ven vos y tesorería: el resto de los usuarios no.</p>
+      <div className="lean-form">
+        <label className="lean-campo"><span>Alias</span><input value={c.alias} onChange={(e) => setC({ ...c, alias: e.target.value })} autoComplete="off" /></label>
+        <label className="lean-campo lean-ancho"><span>CBU o CVU</span><input inputMode="numeric" value={c.cbu} onChange={(e) => setC({ ...c, cbu: e.target.value })} autoComplete="off" /></label>
+        <label className="lean-campo"><span>Titular (si no sos vos)</span><input value={c.titular} onChange={(e) => setC({ ...c, titular: e.target.value })} /></label>
+      </div>
+      {errores.length > 0 && <div className="lean-falta rg-chico">Revisá: {errores.join("; ")}</div>}
+      <div className="lean-form-acciones">
+        <button className="btn btn-primary" disabled={errores.length > 0}>Guardar</button>
+        <button type="button" className="btn btn-secondary" onClick={() => setAbierto(false)}>Cancelar</button>
+        {cuenta && <button type="button" className="btn btn-secondary" onClick={borrar}>Borrar mis datos</button>}
+      </div>
+    </form>
   );
 }
 
@@ -639,7 +701,7 @@ function Aprobar({ gastos, tarjetas, archivosDe, accion }) {
 /* ─── TESORERÍA: conciliación de tarjetas y reembolsos ───────────────────── */
 const mesActual = () => hoyIso().slice(0, 7);
 
-function Consolidar({ gastos, tarjetas, archivosDe, accion }) {
+function Consolidar({ gastos, tarjetas, archivosDe, accion, cuentas }) {
   const [tarjetaId, setTarjetaId] = useState(() => tarjetas.find((t) => t.activa)?.id ?? "");
   const [mes, setMes] = useState(mesActual);
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -747,14 +809,22 @@ function Consolidar({ gastos, tarjetas, archivosDe, accion }) {
         {!porPersona.length ? <div className="aside-empty">No hay reembolsos pendientes.</div> : (
           <div className="lean-scroll">
             <table className="lean-tabla rg-reembolsos">
-              <thead><tr><th>Persona</th><th className="n">Gastos</th><th className="n">Saldo</th><th /></tr></thead>
+              <thead><tr><th>Persona</th><th>Cobra en</th><th className="n">Gastos</th><th className="n">Saldo</th><th /></tr></thead>
               <tbody>
                 {porPersona.map(([k, lista]) => {
                   const [quien, moneda] = k.split("|");
                   const saldo = lista.reduce((s, g) => s + Number(g.a_reembolsar), 0);
+                  const cuenta = cuentas.find((c) => c.email === quien);
                   return (
                     <tr key={k} className="lean-fila">
                       <td className="lean-titulo">{quien}</td>
+                      <td className="rg-cobra" data-l="Cobra en">
+                        {!cuenta?.alias && !cuenta?.cbu ? <span className="lean-vacio">Sin datos cargados</span> : <>
+                          {cuenta.alias && <Copiable etiqueta="Alias" valor={cuenta.alias} />}
+                          {cuenta.cbu && <Copiable etiqueta="CBU" valor={cuenta.cbu} />}
+                          {cuenta.titular && <div className="lean-ayuda">Titular: {cuenta.titular}</div>}
+                        </>}
+                      </td>
                       <td className="n mono" data-l="Gastos">{lista.length}</td>
                       <td className={`n mono ${saldo < 0 ? "lean-rojo" : ""}`} data-l={saldo < 0 ? "Devuelve" : "A pagar"}>{dinero(saldo, moneda)}</td>
                       <td className="lean-acciones">
@@ -774,6 +844,19 @@ function Consolidar({ gastos, tarjetas, archivosDe, accion }) {
           acciones={(g) => <button type="button" className="btn btn-secondary lean-chico"
             onClick={() => confirm("¿Deshacer el pago?") && accion(async () => ok(await supabase.from("rg_gastos").update({ pagado_el: null }).eq("id", g.id)))}>Deshacer pago</button>} />}
       </section>
+    </div>
+  );
+}
+
+function Copiable({ etiqueta, valor }) {
+  const [copiado, setCopiado] = useState(false);
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(valor); setCopiado(true); setTimeout(() => setCopiado(false), 1500); } catch { /* sin portapapeles */ }
+  };
+  return (
+    <div className="rg-copiable">
+      <span className="lean-kpi-l">{etiqueta}</span> <span className="mono">{valor}</span>
+      <button type="button" className="lean-adjunto" onClick={copiar}>{copiado ? "Copiado" : "Copiar"}</button>
     </div>
   );
 }

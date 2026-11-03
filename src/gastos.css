@@ -1,0 +1,58 @@
+/* ─── GASTOS Y REEMBOLSOS ── usa la base visual del tracker (lean-*) ─────── */
+.rg-badge{ display:inline-block; min-width:18px; margin-left:6px; padding:1px 5px; border-radius:9px; background:var(--state-error); color:#fff; font:600 11px/16px var(--font-mono); text-align:center; }
+.rg-h2{ font:600 17px/1.2 var(--font-sans); color:var(--text-title); margin:0; }
+.rg-bloque{ display:flex; flex-direction:column; gap:var(--space-3); }
+.rg-bloque + .rg-bloque{ padding-top:var(--space-4); border-top:1px solid var(--border-divider); }
+.rg-kpi-dinero{ font-size:20px; }
+.rg-chico{ font-size:12px; font-weight:500; margin-top:2px; }
+
+.rg-fila--enviado{ box-shadow:inset 4px 0 0 var(--state-warn); }
+.rg-fila--aprobado{ box-shadow:inset 4px 0 0 var(--state-ok); }
+.rg-fila--rechazado{ box-shadow:inset 4px 0 0 var(--state-error); background:var(--state-error-bg); }
+.rg-conciliar{ width:18px; height:18px; cursor:pointer; }
+.rg-conciliar:disabled{ cursor:not-allowed; }
+
+.rg-detalle{ display:flex; flex-direction:column; gap:var(--space-3); }
+.rg-datos{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:var(--space-2) var(--space-4); margin:0; }
+.rg-datos dt{ font:500 10px/1.2 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); }
+.rg-datos dd{ margin:2px 0 0; font:400 14px/1.35 var(--font-sans); color:var(--text-body); word-break:break-word; }
+.rg-subtitulo{ font:600 13px/1.2 var(--font-sans); color:var(--text-title); margin-bottom:6px; }
+.rg-rechazo{ padding:var(--space-2) var(--space-3); border-radius:var(--radius); background:var(--state-error-bg); color:var(--state-error); font:400 14px/1.4 var(--font-sans); }
+.rg-aviso{ margin:0; padding:var(--space-2) var(--space-3); border-radius:var(--radius); background:var(--teal-8); color:var(--n-800); font:400 13px/1.4 var(--font-sans); }
+.rg-totales{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:var(--space-2); font:400 14px/1.3 var(--font-sans); color:var(--n-800); }
+
+.rg-editor{ max-width:980px; }
+.rg-seccion{ display:flex; flex-direction:column; gap:var(--space-3); padding-bottom:var(--space-4); border-bottom:1px solid var(--border-divider); }
+.rg-corto{ flex:0 1 110px; }
+.rg-moneda{ flex:0 1 90px; }
+.rg-archivo-nuevo{ font:500 12px/1.3 var(--font-sans); color:var(--n-800); }
+.rg-opciones{ display:flex; flex-wrap:wrap; gap:var(--space-2); }
+.rg-opcion{ display:flex; align-items:center; gap:8px; min-height:var(--control-height); padding:0 14px; border:1px solid var(--border-control);
+  border-radius:var(--radius); background:var(--surface-panel); font:500 14px/1.2 var(--font-sans); color:var(--n-800); cursor:pointer; }
+.rg-opcion.is-active{ border-color:var(--teal-integra); background:var(--teal-8); color:var(--text-title); }
+.rg-asistentes{ display:flex; flex-direction:column; gap:var(--space-2); }
+.rg-asistente{ padding-left:var(--space-3); border-left:2px solid var(--border-divider); }
+.rg-resumen{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:var(--space-3); font:400 15px/1.4 var(--font-sans); }
+
+@media (max-width:900px){
+  .rg-kpi-dinero{ font-size:14px; }
+  .rg-tabla tr.lean-fila{ grid-template-areas:
+      "fecha estado" "prov prov" "persona persona" "medio comp" "importe reemb" "sel sel" "acc acc"; }
+  .rg-c-fecha{ grid-area:fecha; }
+  .rg-c-estado{ grid-area:estado; justify-self:end; }
+  .rg-tabla .rg-c-prov{ grid-area:prov; }
+  .rg-c-persona{ grid-area:persona; }
+  .rg-c-medio{ grid-area:medio; font-size:13px; }
+  .rg-c-comp{ grid-area:comp; font-size:13px; }
+  .rg-tabla .rg-c-importe{ grid-area:importe; text-align:left; }
+  .rg-tabla .rg-c-reemb{ grid-area:reemb; text-align:left; }
+  .rg-c-sel{ grid-area:sel; display:flex !important; align-items:center; gap:8px; }
+  .rg-c-sel::before{ margin:0 !important; }
+  .rg-tabla .rg-c-acc{ grid-area:acc; }
+  .rg-reembolsos tr.lean-fila{ display:flex; flex-wrap:wrap; gap:6px 16px; padding:var(--space-3); background:var(--surface-panel); border:1px solid var(--border-divider); border-radius:var(--radius); }
+  .rg-reembolsos .lean-titulo{ flex:1 1 100%; }
+  .rg-reembolsos .lean-acciones{ flex:1 1 100%; display:flex; flex-wrap:wrap; gap:6px; }
+  .rg-reembolsos .n{ text-align:left; }
+  .rg-resumen .lean-form-acciones{ width:100%; }
+  .rg-resumen .btn{ flex:1; }
+}

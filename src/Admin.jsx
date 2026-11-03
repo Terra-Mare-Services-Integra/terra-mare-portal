@@ -8,6 +8,9 @@ import "./tracker.css";
 
 const ok = ({ data, error }) => { if (error) throw error; return data; };
 const ROLES_LM = [["", "Sin acceso"], ["lector", "Solo lectura"], ["editor", "Edición"]];
+// Gastos: "gastos" carga lo propio; "gastos-consolida" además ve todo, concilia y paga (tesorería).
+const ROLES_GASTOS = [["", "Sin acceso"], ["gastos", "Carga"], ["gastos-consolida", "Carga y tesorería"]];
+const rolGastos = (modulos) => (modulos.includes("gastos-consolida") ? "gastos-consolida" : modulos.includes("gastos") ? "gastos" : "");
 
 export default function AdminTerraMare() {
   const [usuarios, setUsuarios] = useState(null);
@@ -48,6 +51,10 @@ export default function AdminTerraMare() {
   });
   const toggleTracker = (u) => cambiar(u, async () => {
     const modulos = u.modulos.includes("tracker") ? u.modulos.filter((m) => m !== "tracker") : [...u.modulos, "tracker"];
+    ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
+  });
+  const cambiarGastos = (u, rol) => cambiar(u, async () => {
+    const modulos = [...u.modulos.filter((m) => m !== "gastos" && m !== "gastos-consolida"), ...(rol ? [rol] : [])];
     ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
   });
   const cambiarLm = (u, rol) => cambiar(u, async () => {
@@ -99,6 +106,7 @@ export default function AdminTerraMare() {
               <th>Portal</th>
               <th>Loading Masters</th>
               <th>Tracker Lean</th>
+              <th>Gastos</th>
               {tableros.map((t) => <th key={t.id} className="admin-tablero">Tablero<br />{t.nombre}</th>)}
             </tr>
           </thead>
@@ -125,6 +133,13 @@ export default function AdminTerraMare() {
                     <input type="checkbox" aria-label={`Tracker para ${u.email}`} checked={conTracker}
                       disabled={ocupado || !u.portal} onChange={() => toggleTracker(u)} title={u.portal ? "" : "Primero dale acceso al portal"} />
                   </td>
+                  <td data-l="Gastos">
+                    <select className="admin-select" aria-label={`Gastos para ${u.email}`} value={rolGastos(u.modulos)}
+                      disabled={ocupado || !u.portal} onChange={(e) => cambiarGastos(u, e.target.value)}
+                      title={u.portal ? "" : "Primero dale acceso al portal"}>
+                      {ROLES_GASTOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                    </select>
+                  </td>
                   {tableros.map((t) => (
                     <td key={t.id} data-l={`Tablero ${t.nombre}`}>
                       <input type="checkbox" aria-label={`Tablero ${t.nombre} para ${u.email}`} checked={u.tableros.includes(t.id)}
@@ -142,7 +157,9 @@ export default function AdminTerraMare() {
       <p className="lean-regla">
         Cuentas nuevas: se crean en el Supabase de Terra Mare (Authentication → Users → Add user, con "Auto Confirm User")
         y aparecen acá para habilitarlas. Loading Masters: "Edición" ve y carga todo (sueldos, márgenes, facturación);
-        "Solo lectura" ve Resultado y Dashboards. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
+        "Solo lectura" ve Resultado y Dashboards.
+        Gastos: "Carga" rinde sus propios gastos; "Carga y tesorería" además ve los de todos, concilia los resúmenes
+        de tarjeta y marca los reembolsos pagados. Los gastos los aprueban los administradores. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
       </p>
     </div>
   );

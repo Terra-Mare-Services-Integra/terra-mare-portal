@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "./lib/supabase";
 import Tracker from "./Tracker";
 import AdminTerraMare from "./Admin";
+// Gastos trae el lector de QR y el armado de .zip: se carga recién al entrar al módulo.
+const Gastos = lazy(() => import("./Gastos"));
 
 /* Instancia de esta aplicación. Se usa para filtrar los datos del portal. */
 const EMPRESA_ID     = "terramare";
@@ -16,6 +18,9 @@ const MODULOS = [
   { id:"tracker", codigo:"TR", nombre:"Tracker Lean",
     descripcion:"Tareas por tablero compartido: en curso, atrasadas y completadas.",
     estado:"activo", url:"#/tracker" },
+  { id:"gastos", codigo:"GA", nombre:"Gastos y reembolsos",
+    descripcion:"Facturas, tickets y reembolsos con su comprobante, sin mandar mails.",
+    estado:"activo", url:"#/gastos" },
 ];
 
 /* Ruta interna del portal (#/tracker). */
@@ -297,7 +302,9 @@ function Portal({ user, permisos, onLogout }) {
   }, [user.id]);
 
   const ruta = useRuta();
-  const tieneAcceso = (id) => permisos.admin || (id === "loading-masters" ? !!permisos.lm : permisos.modulos.includes(id));
+  const tieneAcceso = (id) => permisos.admin || (id === "loading-masters" ? !!permisos.lm
+    : id === "gastos" ? permisos.modulos.some((m) => m === "gastos" || m === "gastos-consolida")
+    : permisos.modulos.includes(id));
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];
 
@@ -336,7 +343,12 @@ function Portal({ user, permisos, onLogout }) {
       </header>
 
       {ruta === "#/admin" && permisos.admin ? <AdminTerraMare /> :
-       ruta === "#/tracker" && tieneAcceso("tracker") ? <Tracker user={user} /> : <>
+       ruta === "#/tracker" && tieneAcceso("tracker") ? <Tracker user={user} /> :
+       ruta === "#/gastos" && tieneAcceso("gastos") ? (
+         <Suspense fallback={<div className="lean"><div className="aside-empty">Cargando…</div></div>}>
+           <Gastos user={user} permisos={permisos} />
+         </Suspense>
+       ) : <>
       <div className="brandstrip">
         <img src="/terramare-azul.png" alt="TERRAMARE" className="brandstrip-logo" />
         <span className="brandstrip-div" />

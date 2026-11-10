@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase";
+import Mom from "./Mom";
 import "./tracker.css";
 
 /* ─── TRACKER LEAN ───────────────────────────────────────────────────────────
@@ -107,6 +108,8 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [notas, setNotas] = useState([]);
   const [notasAbiertas, setNotasAbiertas] = useState([]);   // se pueden desplegar varias tareas a la vez
   const [modoReunion, setModoReunion] = useState(false);
+  const [reuniones, setReuniones] = useState([]);
+  const [armandoMom, setArmandoMom] = useState(false);
   const [verMiembros, setVerMiembros] = useState(false);
   const [error, setError] = useState("");
   const hoy = hoyIso();
@@ -114,16 +117,18 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const principal = tableros.find((t) => t.principal);
   const leer = async () => {
     const consulta = supabase.from("lean_tareas").select("*");
-    const [t, m, p, a, n] = await Promise.all([
+    const [t, m, p, a, n, r] = await Promise.all([
       (tablero.principal ? consulta : consulta.or(`tablero_id.eq.${tablero.id},compartida_con.cs.{${tablero.id}}`)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
       supabase.from("lean_miembros").select("email, nombre, rol").eq("tablero_id", tablero.id).order("nombre"),
       principal && !tablero.principal ? supabase.from("lean_tareas").select("proyecto").eq("tablero_id", principal.id) : { data: [] },
       supabase.from("lean_adjuntos").select("*").order("created_at"),
       supabase.from("lean_notas").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
+      supabase.from("lean_reuniones").select("*").eq("tablero_id", tablero.id).order("fecha", { ascending: false }).order("created_at", { ascending: false }),
     ]);
-    return [ok(t), ok(m), ok(p), ok(a), ok(n)];
+    return [ok(t), ok(m), ok(p), ok(a), ok(n), ok(r)];
   };
-  const aplicar = ([t, m, p, a, n]) => {
+  const aplicar = ([t, m, p, a, n, r]) => {
+    setReuniones(r);
     setTareas(t);
     setAdjuntos(a);
     setNotas(n);
@@ -162,6 +167,43 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
     .sort(([a], [b]) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
 
   if (!tareas) return <div className="aside-empty">{error || "Cargando tareas…"}</div>;
+
+  // Guardar la MoM: la reunión con el orden de las tareas y una nota por tarea en su bitácora.
+  // Si fallan las notas, se borra la reunión para no dejar una minuta a medias.
+  const guardarMom = async ({ titulo, fecha, asistentes, items }) => {
+    setError("");
+    try {
+      const r = ok(await supabase.from("lean_reuniones").insert({ tablero_id: tablero.id, titulo: titulo || "Reunión", fecha, asistentes,
+        tareas: items.map((i) => i.tareaId) }).select("id").single());
+      const filas = items.filter((i) => i.texto).map((i) => ({ tarea_id: i.tareaId, fecha, texto: i.texto, reunion_id: r.id }));
+      if (filas.length) {
+        const { error: e } = await supabase.from("lean_notas").insert(filas);
+        if (e) { await supabase.from("lean_reuniones").delete().eq("id", r.id); throw e; }
+      }
+      await cargar();
+      return true;
+    } catch (e) { setError(e.message); return false; }
+  };
+  const crearTareaMom = async (t) => {
+    setError("");
+    try {
+      const nueva = ok(await supabase.from("lean_tareas").insert({ ...t, tablero_id: tablero.id }).select("id").single());
+      await cargar();
+      return nueva.id;
+    } catch (e) { setError(e.message); return null; }
+  };
+
+  if (armandoMom) {
+    return (
+      <section className="lean-tablero">
+        {error && <div className="alert" role="alert"><div className="alert-label">Error</div><div className="alert-text">{error}</div></div>}
+        <Mom tablero={tablero} tareas={conEstado} notas={notas} reuniones={reuniones} ESTADOS={ESTADOS} responsables={responsables} email={email}
+          onCrearTarea={crearTareaMom} onGuardar={guardarMom} onCerrar={() => setArmandoMom(false)}
+          onBorrarReunion={(r) => confirm(`¿Borrar la minuta "${r.titulo}"? Las notas quedan en sus tareas.`)
+            && accion(async () => ok(await supabase.from("lean_reuniones").delete().eq("id", r.id)))} />
+      </section>
+    );
+  }
 
   return (
     <section className="lean-tablero">
@@ -203,7 +245,9 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
           <input type="checkbox" checked={modoReunion} onChange={(e) => setModoReunion(e.target.checked)} />
           Modo reunión
         </label>
-        <button type="button" className="btn btn-secondary" onClick={() => setVerMiembros((v) => !v)}>
+        <button type="button" className="btn btn-primary" onClick={() => setArmandoMom(true)}
+          title="Minuta de reunión: arrastrá tareas, anotá cada una y copiala para un mail">Armar MoM</button>
+        <button type="button" className="btn btn-secondary lean-miembros-btn" onClick={() => setVerMiembros((v) => !v)}>
           Miembros ({miembros.length})
         </button>
       </div>
@@ -248,6 +292,7 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                     notas={notas.filter((n) => n.tarea_id === t.id)}
                     verNotas={modoReunion ? "reunion" : notasAbiertas.includes(t.id) ? "completo" : null}
                     onAbrirNotas={() => setNotasAbiertas((a) => (a.includes(t.id) ? a.filter((x) => x !== t.id) : [...a, t.id]))}
+                    reunionDe={(id) => reuniones.find((r) => r.id === id)?.titulo}
                     autorDe={(e) => miembros.find((m) => m.email === e)?.nombre || e.replace(/@.*$/, "")}
                     email={email}
                     onAgregarNota={(fecha, texto) => accion(async () => ok(await supabase.from("lean_notas").insert({ tarea_id: t.id, fecha, texto })))}
@@ -302,7 +347,7 @@ function Kpi({ estado, n, onClick, activo }) {
 // Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
 function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir,
   adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar,
-  notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, autorDe, email }) {
+  notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, autorDe, reunionDe, email }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
   const compartida = t.compartida_con ?? [];
@@ -349,7 +394,7 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
       </td>
     </tr>
     {verNotas && (
-      <PanelNotas notas={notas} compacto={verNotas === "reunion"} hoy={hoy} email={email} autorDe={autorDe}
+      <PanelNotas notas={notas} compacto={verNotas === "reunion"} hoy={hoy} email={email} autorDe={autorDe} reunionDe={reunionDe}
         onAgregar={onAgregarNota} onBorrar={onBorrarNota} onVerTodas={onAbrirNotas} />
     )}
     {verAdjuntos && (
@@ -386,7 +431,7 @@ const cargada = (ts) => {
   return `${dd(d.getDate())}.${dd(d.getMonth() + 1)}.${d.getFullYear()} ${dd(d.getHours())}:${dd(d.getMinutes())}`;
 };
 
-function PanelNotas({ notas, compacto, hoy, email, autorDe, onAgregar, onBorrar, onVerTodas }) {
+function PanelNotas({ notas, compacto, hoy, email, autorDe, reunionDe, onAgregar, onBorrar, onVerTodas }) {
   const [fecha, setFecha] = useState(hoy);
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -428,7 +473,7 @@ function PanelNotas({ notas, compacto, hoy, email, autorDe, onAgregar, onBorrar,
                   <span className="lean-nota-dia mono">{fmtCorta(n.fecha)}</span>
                   <span className="lean-nota-cuerpo">
                     {n.texto}
-                    <span className="lean-nota-meta">{autorDe(n.autor)} · cargada {cargada(n.created_at)}</span>
+                    <span className="lean-nota-meta">{autorDe(n.autor)} · cargada {cargada(n.created_at)}{n.reunion_id && reunionDe(n.reunion_id) ? ` · MoM “${reunionDe(n.reunion_id)}”` : ""}</span>
                   </span>
                   {borrable && <button type="button" className="lean-borrar" onClick={() => onBorrar(n)} aria-label="Borrar nota" title="Borrar (solo en los primeros 15 minutos)">×</button>}
                 </li>

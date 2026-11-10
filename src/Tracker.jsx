@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase";
 import "./tracker.css";
 
@@ -104,6 +104,9 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [compartiendo, setCompartiendo] = useState(null);
   const [adjuntos, setAdjuntos] = useState([]);
   const [conAdjuntos, setConAdjuntos] = useState(null);
+  const [notas, setNotas] = useState([]);
+  const [conNotas, setConNotas] = useState(null);
+  const [modoReunion, setModoReunion] = useState(false);
   const [verMiembros, setVerMiembros] = useState(false);
   const [error, setError] = useState("");
   const hoy = hoyIso();
@@ -111,17 +114,19 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const principal = tableros.find((t) => t.principal);
   const leer = async () => {
     const consulta = supabase.from("lean_tareas").select("*");
-    const [t, m, p, a] = await Promise.all([
+    const [t, m, p, a, n] = await Promise.all([
       (tablero.principal ? consulta : consulta.or(`tablero_id.eq.${tablero.id},compartida_con.cs.{${tablero.id}}`)).order("fin_tentativa", { ascending: true, nullsFirst: false }),
       supabase.from("lean_miembros").select("email, nombre, rol").eq("tablero_id", tablero.id).order("nombre"),
       principal && !tablero.principal ? supabase.from("lean_tareas").select("proyecto").eq("tablero_id", principal.id) : { data: [] },
       supabase.from("lean_adjuntos").select("*").order("created_at"),
+      supabase.from("lean_notas").select("*").order("fecha", { ascending: false }).order("created_at", { ascending: false }),
     ]);
-    return [ok(t), ok(m), ok(p), ok(a)];
+    return [ok(t), ok(m), ok(p), ok(a), ok(n)];
   };
-  const aplicar = ([t, m, p, a]) => {
+  const aplicar = ([t, m, p, a, n]) => {
     setTareas(t);
     setAdjuntos(a);
+    setNotas(n);
     setMiembros(m);
     setProyectosPrincipal([...new Set(p.map((x) => x.proyecto).filter(Boolean))]);
   };
@@ -194,6 +199,10 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
           <input type="checkbox" checked={verCompletadas} disabled={!!filtroEstado} onChange={(e) => setVerCompletadas(e.target.checked)} />
           Mostrar completadas
         </label>
+        <label className="lean-check" title="Abre la carga de notas debajo de cada tarea, para anotar en vivo durante una reunión">
+          <input type="checkbox" checked={modoReunion} onChange={(e) => setModoReunion(e.target.checked)} />
+          Modo reunión
+        </label>
         <button type="button" className="btn btn-secondary" onClick={() => setVerMiembros((v) => !v)}>
           Miembros ({miembros.length})
         </button>
@@ -235,6 +244,17 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                       const ruta = `tareas/${t.id}/${Date.now()}-${archivo.name.replace(/[^\w.\- ]+/g, "_")}`;
                       ok(await supabase.storage.from("tracker").upload(ruta, archivo));
                       ok(await supabase.from("lean_adjuntos").insert({ tarea_id: t.id, tipo: "archivo", nombre: archivo.name, ruta }));
+                    })}
+                    notas={notas.filter((n) => n.tarea_id === t.id)}
+                    verNotas={modoReunion ? "reunion" : conNotas === t.id ? "completo" : null}
+                    onAbrirNotas={() => setConNotas(conNotas === t.id ? null : t.id)}
+                    autorDe={(e) => miembros.find((m) => m.email === e)?.nombre || e.replace(/@.*$/, "")}
+                    email={email}
+                    onAgregarNota={(fecha, texto) => accion(async () => ok(await supabase.from("lean_notas").insert({ tarea_id: t.id, fecha, texto })))}
+                    onBorrarNota={(n) => confirm("¿Borrar esta nota?") && accion(async () => {
+                      // La base solo deja borrar notas propias de los últimos 15 minutos: si no borró nada, avisar.
+                      if (!ok(await supabase.from("lean_notas").delete().eq("id", n.id).select("id")).length)
+                        throw new Error("Esa nota ya no se puede borrar: pasaron más de 15 minutos desde que se cargó.");
                     })}
                     onAbrirArchivo={(a) => abrirArchivo(a).catch((e) => setError(e.message))}
                     onQuitarAdjunto={(a) => confirm(`¿Quitar "${a.nombre}" de la tarea?`) && accion(async () => {
@@ -281,7 +301,8 @@ function Kpi({ estado, n, onClick, activo }) {
 
 // Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
 function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir,
-  adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar }) {
+  adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar,
+  notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, autorDe, email }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
   const compartida = t.compartida_con ?? [];
@@ -302,6 +323,11 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
             {adjuntos.map((a) => <Adjunto key={a.id} a={a} onAbrirArchivo={onAbrirArchivo} />)}
           </div>
         )}
+        {notas.length > 0 && verNotas !== "reunion" && (
+          <button type="button" className="lean-ultima-nota" onClick={onAbrirNotas} title="Ver todas las notas">
+            <span className="mono">{fmtCorta(notas[0].fecha)}</span> {notas[0].texto}
+          </button>
+        )}
       </td>
       <td className="lean-c-resp" data-l="Responsable">{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
       <td className="mono lean-c-inicio" data-l="Inicio">{fmt(t.inicio)}</td>
@@ -311,6 +337,8 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
       <td className="lean-acciones">
         <button type="button" className="btn btn-secondary lean-chico" onClick={onCompletar}>{t.completada_el ? "Reabrir" : "Completar"}</button>
         <button type="button" className="btn btn-secondary lean-chico" onClick={onEditar}>Editar</button>
+        <button type="button" className={`btn btn-secondary lean-chico ${verNotas === "completo" ? "is-active" : ""}`} onClick={onAbrirNotas}
+          aria-expanded={verNotas === "completo"} title="Bitácora por fecha de lo que se fue hablando">Notas{notas.length ? ` (${notas.length})` : ""}</button>
         <button type="button" className={`btn btn-secondary lean-chico ${verAdjuntos ? "is-active" : ""}`} onClick={onAbrirAdjuntos}
           aria-expanded={verAdjuntos} title="Links (por ejemplo, carpetas de SharePoint) y archivos">Adjuntos{adjuntos.length ? ` (${adjuntos.length})` : ""}</button>
         {destinos.length > 0 && (
@@ -320,6 +348,10 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
         <button type="button" className="lean-borrar" onClick={onBorrar} aria-label="Borrar tarea" title="Borrar">×</button>
       </td>
     </tr>
+    {verNotas && (
+      <PanelNotas notas={notas} compacto={verNotas === "reunion"} hoy={hoy} email={email} autorDe={autorDe}
+        onAgregar={onAgregarNota} onBorrar={onBorrarNota} onVerTodas={onAbrirNotas} />
+    )}
     {verAdjuntos && (
       <PanelAdjuntos adjuntos={adjuntos} onAgregarLink={onAgregarLink} onSubirArchivo={onSubirArchivo}
         onAbrirArchivo={onAbrirArchivo} onQuitar={onQuitarAdjunto} />
@@ -340,6 +372,78 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
       </tr>
     )}
     </>
+  );
+}
+
+// Bitácora de la tarea: notas por fecha, la más nueva arriba. Enter guarda y deja el cursor listo para la
+// siguiente (para anotar en vivo en una call); Shift+Enter hace un salto de línea. En modo reunión se
+// muestra compacta: la carga y las últimas tres notas.
+const fmtCorta = (iso) => iso.slice(5, 10).split("-").reverse().join("/");
+const BORRABLE_MS = 15 * 60 * 1000;
+const cargada = (ts) => {
+  const d = new Date(ts);
+  const dd = (n) => String(n).padStart(2, "0");
+  return `${dd(d.getDate())}.${dd(d.getMonth() + 1)}.${d.getFullYear()} ${dd(d.getHours())}:${dd(d.getMinutes())}`;
+};
+
+function PanelNotas({ notas, compacto, hoy, email, autorDe, onAgregar, onBorrar, onVerTodas }) {
+  const [fecha, setFecha] = useState(hoy);
+  const [texto, setTexto] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const caja = useRef(null);
+  const visibles = compacto ? notas.slice(0, 3) : notas;
+  // Reloj para saber qué notas propias todavía se pueden borrar; se actualiza cada 30 segundos.
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const guardar = async (e) => {
+    e?.preventDefault();
+    if (!texto.trim() || guardando) return;
+    setGuardando(true);
+    await onAgregar(fecha || hoy, texto.trim());
+    setTexto("");
+    setGuardando(false);
+    caja.current?.focus();
+  };
+
+  return (
+    <tr className={`lean-panel-notas ${compacto ? "is-compacto" : ""}`}>
+      <td colSpan={8}>
+        <form className="lean-nota-form" onSubmit={guardar}>
+          <input type="date" className="lean-nota-fecha" aria-label="Fecha de la nota" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          <textarea ref={caja} className="lean-nota-texto" rows={1} value={texto} placeholder="Escribí la nota y Enter para guardar"
+            aria-label="Nueva nota" onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) guardar(e); }} />
+          <button className="btn btn-primary lean-chico" disabled={!texto.trim() || guardando}>{guardando ? "Guardando…" : "Agregar"}</button>
+        </form>
+        {visibles.length > 0 ? (
+          <ol className="lean-notas">
+            {visibles.map((n) => {
+              const borrable = n.autor === email && ahora - Date.parse(n.created_at) < BORRABLE_MS;
+              return (
+                <li key={n.id}>
+                  <span className="lean-nota-dia mono">{fmtCorta(n.fecha)}</span>
+                  <span className="lean-nota-cuerpo">
+                    {n.texto}
+                    <span className="lean-nota-meta">{autorDe(n.autor)} · cargada {cargada(n.created_at)}</span>
+                  </span>
+                  {borrable && <button type="button" className="lean-borrar" onClick={() => onBorrar(n)} aria-label="Borrar nota" title="Borrar (solo en los primeros 15 minutos)">×</button>}
+                </li>
+              );
+            })}
+          </ol>
+        ) : !compacto && <p className="lean-ayuda">Todavía no hay notas en esta tarea.</p>}
+        {compacto && notas.length > 3 && (
+          <button type="button" className="lean-adjunto" onClick={onVerTodas}>Ver las {notas.length} notas</button>
+        )}
+        {!compacto && notas.length > 0 && (
+          <p className="lean-ayuda">Las notas quedan como historia y no se editan. Una nota tuya se puede borrar solo en los primeros 15 minutos.</p>
+        )}
+      </td>
+    </tr>
   );
 }
 

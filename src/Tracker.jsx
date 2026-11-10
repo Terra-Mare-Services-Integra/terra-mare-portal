@@ -328,11 +328,6 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
             {adjuntos.map((a) => <Adjunto key={a.id} a={a} onAbrirArchivo={onAbrirArchivo} />)}
           </div>
         )}
-        {notas.length > 0 && !verNotas && (
-          <button type="button" className="lean-ultima-nota" onClick={onAbrirNotas} title="Ver todas las notas">
-            <span className="mono">{fmtCorta(notas[0].fecha)}</span> {notas[0].texto}
-          </button>
-        )}
       </td>
       <td className="lean-c-resp" data-l="Responsable">{t.responsable || <span className="lean-vacio">Sin asignar</span>}</td>
       <td className="mono lean-c-inicio" data-l="Inicio">{fmt(t.inicio)}</td>

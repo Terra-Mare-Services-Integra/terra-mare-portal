@@ -199,3 +199,10 @@ a.topbar-inicio:hover{ text-decoration:underline; }
   .lean-tabla .lean-acciones{ white-space:normal; min-width:230px; }
   .lean-tabla .lean-acciones .btn{ margin:2px 0 2px 6px; }
 }
+
+/* Flechita para desplegar las notas de la tarea */
+.lean-desplegar{ display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none; cursor:pointer; text-align:left; font:inherit; color:inherit; }
+.lean-desplegar:hover{ color:var(--teal-integra); }
+.lean-flecha{ flex:0 0 18px; width:18px; height:18px; align-self:center; margin-left:-4px; padding:1px; border-radius:4px; fill:none; stroke:var(--teal-integra); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; transition:transform .15s ease, background .15s; }
+.lean-desplegar:hover .lean-flecha{ background:var(--teal-8); }
+.lean-desplegar.is-abierta .lean-flecha{ transform:rotate(90deg); }

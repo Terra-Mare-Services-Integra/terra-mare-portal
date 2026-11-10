@@ -105,7 +105,7 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   const [adjuntos, setAdjuntos] = useState([]);
   const [conAdjuntos, setConAdjuntos] = useState(null);
   const [notas, setNotas] = useState([]);
-  const [conNotas, setConNotas] = useState(null);
+  const [notasAbiertas, setNotasAbiertas] = useState([]);   // se pueden desplegar varias tareas a la vez
   const [modoReunion, setModoReunion] = useState(false);
   const [verMiembros, setVerMiembros] = useState(false);
   const [error, setError] = useState("");
@@ -246,8 +246,8 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                       ok(await supabase.from("lean_adjuntos").insert({ tarea_id: t.id, tipo: "archivo", nombre: archivo.name, ruta }));
                     })}
                     notas={notas.filter((n) => n.tarea_id === t.id)}
-                    verNotas={modoReunion ? "reunion" : conNotas === t.id ? "completo" : null}
-                    onAbrirNotas={() => setConNotas(conNotas === t.id ? null : t.id)}
+                    verNotas={modoReunion ? "reunion" : notasAbiertas.includes(t.id) ? "completo" : null}
+                    onAbrirNotas={() => setNotasAbiertas((a) => (a.includes(t.id) ? a.filter((x) => x !== t.id) : [...a, t.id]))}
                     autorDe={(e) => miembros.find((m) => m.email === e)?.nombre || e.replace(/@.*$/, "")}
                     email={email}
                     onAgregarNota={(fecha, texto) => accion(async () => ok(await supabase.from("lean_notas").insert({ tarea_id: t.id, fecha, texto })))}
@@ -311,7 +311,12 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
     <tr className={`lean-fila lean-fila--${t.estado}`}>
       <td className="lean-c-estado"><span className={`pill ${ESTADOS[t.estado].clase}`}>{ESTADOS[t.estado].nombre}</span></td>
       <td className="lean-titulo">
-        {t.titulo}
+        {notas.length > 0 && verNotas !== "reunion" ? (
+          <button type="button" className={`lean-desplegar ${verNotas ? "is-abierta" : ""}`} onClick={onAbrirNotas}
+            aria-expanded={!!verNotas} title={verNotas ? "Ocultar notas" : `Ver ${notas.length} ${notas.length === 1 ? "nota" : "notas"}`}>
+            <svg className="lean-flecha" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>{t.titulo}
+          </button>
+        ) : t.titulo}
         {(origen || compartidaCon.length > 0) && (
           <div className="lean-senales">
             {origen && <span className="lean-chip lean-chip--origen" title="La tarea se creó en otro tablero">↙ De {origen}</span>}
@@ -323,7 +328,7 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
             {adjuntos.map((a) => <Adjunto key={a.id} a={a} onAbrirArchivo={onAbrirArchivo} />)}
           </div>
         )}
-        {notas.length > 0 && verNotas !== "reunion" && (
+        {notas.length > 0 && !verNotas && (
           <button type="button" className="lean-ultima-nota" onClick={onAbrirNotas} title="Ver todas las notas">
             <span className="mono">{fmtCorta(notas[0].fecha)}</span> {notas[0].texto}
           </button>

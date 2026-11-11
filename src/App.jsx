@@ -21,6 +21,9 @@ const MODULOS = [
   { id:"gastos", codigo:"GA", nombre:"Gastos y reembolsos",
     descripcion:"Facturas, tickets y reembolsos con su comprobante, sin mandar mails.",
     estado:"activo", url:"#/gastos" },
+  { id:"sueldos", codigo:"SU", nombre:"Calculadora de sueldos",
+    descripcion:"Crewing, liquidación por régimen y escalas FENA/FESIMAF con log de cambios.",
+    estado:"activo", url:"https://integra.sueldos.terra-mare.com.ar" },
 ];
 
 /* Ruta interna del portal (#/tracker). */
@@ -304,6 +307,7 @@ function Portal({ user, permisos, onLogout }) {
   const ruta = useRuta();
   const tieneAcceso = (id) => permisos.admin || (id === "loading-masters" ? !!permisos.lm
     : id === "gastos" ? permisos.modulos.some((m) => m === "gastos" || m === "gastos-consolida")
+    : id === "sueldos" ? permisos.modulos.some((m) => m === "sueldos" || m === "sueldos-edita")
     : permisos.modulos.includes(id));
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];

@@ -10,6 +10,9 @@ const ok = ({ data, error }) => { if (error) throw error; return data; };
 const ROLES_LM = [["", "Sin acceso"], ["lector", "Solo lectura"], ["editor", "Edición"]];
 // Gastos: "gastos" carga lo propio; "gastos-consolida" además ve todo, concilia y paga (tesorería).
 const ROLES_GASTOS = [["", "Sin acceso"], ["gastos", "Carga"], ["gastos-consolida", "Carga y tesorería"]];
+// Calculadora de sueldos: "sueldos" la usa; "sueldos-edita" además carga actas, divisas y parámetros.
+const ROLES_SUELDOS = [["", "Sin acceso"], ["sueldos", "Uso"], ["sueldos-edita", "Uso y carga de escalas"]];
+const rolSueldos = (modulos) => (modulos.includes("sueldos-edita") ? "sueldos-edita" : modulos.includes("sueldos") ? "sueldos" : "");
 const rolGastos = (modulos) => (modulos.includes("gastos-consolida") ? "gastos-consolida" : modulos.includes("gastos") ? "gastos" : "");
 
 export default function AdminTerraMare() {
@@ -55,6 +58,10 @@ export default function AdminTerraMare() {
   });
   const cambiarGastos = (u, rol) => cambiar(u, async () => {
     const modulos = [...u.modulos.filter((m) => m !== "gastos" && m !== "gastos-consolida"), ...(rol ? [rol] : [])];
+    ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
+  });
+  const cambiarSueldos = (u, rol) => cambiar(u, async () => {
+    const modulos = [...u.modulos.filter((m) => m !== "sueldos" && m !== "sueldos-edita"), ...(rol ? [rol] : [])];
     ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
   });
   const cambiarLm = (u, rol) => cambiar(u, async () => {
@@ -107,6 +114,7 @@ export default function AdminTerraMare() {
               <th>Loading Masters</th>
               <th>Tracker Lean</th>
               <th>Gastos</th>
+              <th>Sueldos</th>
               {tableros.map((t) => <th key={t.id} className="admin-tablero">Tablero<br />{t.nombre}</th>)}
             </tr>
           </thead>
@@ -140,6 +148,13 @@ export default function AdminTerraMare() {
                       {ROLES_GASTOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
                     </select>
                   </td>
+                  <td data-l="Sueldos">
+                    <select className="admin-select" aria-label={`Calculadora de sueldos para ${u.email}`} value={rolSueldos(u.modulos)}
+                      disabled={ocupado || !u.portal} onChange={(e) => cambiarSueldos(u, e.target.value)}
+                      title={u.portal ? "" : "Primero dale acceso al portal"}>
+                      {ROLES_SUELDOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                    </select>
+                  </td>
                   {tableros.map((t) => (
                     <td key={t.id} data-l={`Tablero ${t.nombre}`}>
                       <input type="checkbox" aria-label={`Tablero ${t.nombre} para ${u.email}`} checked={u.tableros.includes(t.id)}
@@ -159,7 +174,8 @@ export default function AdminTerraMare() {
         y aparecen acá para habilitarlas. Loading Masters: "Edición" ve y carga todo (sueldos, márgenes, facturación);
         "Solo lectura" ve Resultado y Dashboards.
         Gastos: "Carga" rinde sus propios gastos; "Carga y tesorería" además ve los de todos, concilia los resúmenes
-        de tarjeta y marca los reembolsos pagados. Los gastos los aprueban los administradores. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
+        de tarjeta y marca los reembolsos pagados. Sueldos: "Uso" calcula y guarda tripulaciones; "Uso y carga de escalas" además
+        carga actas, divisas, parámetros y overrides (todo queda en el log de cambios). Los gastos los aprueban los administradores. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
       </p>
     </div>
   );

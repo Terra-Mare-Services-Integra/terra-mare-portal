@@ -23,7 +23,7 @@ const MODULOS = [
     estado:"activo", url:"#/gastos" },
   { id:"sueldos", codigo:"SU", nombre:"Calculadora de sueldos",
     descripcion:"Crewing, liquidación por régimen y escalas FENA/FESIMAF con log de cambios.",
-    estado:"activo", url:"https://calculadora-sueldos-delta.vercel.app" }, // pasar a integra.sueldos.terra-mare.com.ar cuando esté el CNAME
+    estado:"activo", url:"https://integra.sueldos.terra-mare.com.ar" },
 ];
 
 /* Ruta interna del portal (#/tracker). */

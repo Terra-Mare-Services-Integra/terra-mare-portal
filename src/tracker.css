@@ -191,8 +191,9 @@ a.topbar-inicio:hover{ text-decoration:underline; }
   .lean-nota-texto{ flex:1 1 100%; order:3; }
   }
 @media (min-width:901px){
-  .lean-tabla .lean-acciones{ white-space:normal; min-width:230px; }
-  .lean-tabla .lean-acciones .btn{ margin:2px 0 2px 6px; }
+  .lean-tabla .lean-acciones{ white-space:nowrap; width:1%; padding-left:6px; }
+  .lean-tabla .lean-acciones .btn{ margin:0 0 0 4px; padding:0 8px; }
+  .lean-tabla .lean-acciones .lean-borrar{ margin-left:2px; padding:4px 4px; }
 }
 
 /* Flechita para desplegar las notas de la tarea */

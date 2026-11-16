@@ -154,7 +154,10 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
 
   const conEstado = useMemo(() => (tareas ?? []).map((t) => ({ ...t, estado: estadoTarea(t, hoy) })), [tareas, hoy]);
   const cuenta = (e) => conEstado.filter((t) => t.estado === e).length;
-  const responsables = [...new Set([...miembros.map((m) => m.nombre || m.email), ...conEstado.map((t) => t.responsable)].filter(Boolean))].sort();
+  const responsables = [...miembros.map((m) => m.nombre || m.email), ...conEstado.map((t) => t.responsable)]
+    .filter(Boolean)
+    .reduce((lista, p) => (lista.some((x) => clave(x) === clave(p)) ? lista : [...lista, p]), [])
+    .sort((a, b) => a.localeCompare(b));
   const proyectos = [...proyectosPrincipal, ...conEstado.map((t) => t.proyecto)]
     .filter(Boolean)
     .reduce((lista, p) => (lista.some((x) => clave(x) === clave(p)) ? lista : [...lista, p]), [])
@@ -173,7 +176,7 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
   const otrosTableros = tablero.principal ? [...new Set(conEstado.map((t) => t.tablero_id))].filter((id) => id !== tablero.id) : [];
 
   const visibles = conEstado
-    .filter((t) => !filtroResp || t.responsable === filtroResp)
+    .filter((t) => !filtroResp || clave(t.responsable ?? "") === clave(filtroResp))
     .filter((t) => !filtroTablero || t.tablero_id === filtroTablero)
     .filter((t) => (filtroEstado ? t.estado === filtroEstado : verCompletadas || t.estado !== "completada"))
     .sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || (a.fin_tentativa ?? "9999").localeCompare(b.fin_tentativa ?? "9999"));
@@ -201,7 +204,7 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
   const crearTareaMom = async (t) => {
     setError("");
     try {
-      const nueva = ok(await supabase.from("lean_tareas").insert({ ...t, tablero_id: tablero.id }).select("id").single());
+      const nueva = ok(await supabase.from("lean_tareas").insert({ ...t, responsable: estandarizar(t.responsable ?? "", responsables), tablero_id: tablero.id }).select("id").single());
       await cargar();
       return nueva.id;
     } catch (e) { setError(e.message); return null; }
@@ -231,7 +234,7 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
       {error && <div className="alert" role="alert"><div className="alert-label">Error</div><div className="alert-text">{error}</div></div>}
 
       <NuevaTarea responsables={responsables} proyectos={proyectos} hoy={hoy}
-        onCrear={(t) => accion(async () => ok(await supabase.from("lean_tareas").insert({ ...t, proyecto: estandarizar(t.proyecto, proyectos), tablero_id: tablero.id })))} />
+        onCrear={(t) => accion(async () => ok(await supabase.from("lean_tareas").insert({ ...t, proyecto: estandarizar(t.proyecto, proyectos), responsable: estandarizar(t.responsable, responsables), tablero_id: tablero.id })))} />
 
       <div className="lean-filtros">
         <label className="lean-campo">
@@ -292,7 +295,7 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
                 {lista.map((t) => editando === t.id ? (
                   <FilaEdicion key={t.id} tarea={t} responsables={responsables} proyectos={proyectos}
                     onCancelar={() => setEditando(null)}
-                    onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update({ ...c, proyecto: estandarizar(c.proyecto, proyectos) }).eq("id", t.id)); setEditando(null); })} />
+                    onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update({ ...c, proyecto: estandarizar(c.proyecto, proyectos), responsable: estandarizar(c.responsable, responsables) }).eq("id", t.id)); setEditando(null); })} />
                 ) : (
                   <Fila key={t.id} t={t} hoy={hoy}
                     origen={tablero.principal && t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
@@ -624,9 +627,10 @@ function FilaEdicion({ tarea, responsables, proyectos, onGuardar, onCancelar }) 
     <tr className="lean-editando">
       <td colSpan={8}>
         <div className="lean-form">
-          <CampoProyecto etiqueta="Proyecto" valor={c.proyecto} proyectos={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
+          <CampoLista etiqueta="Proyecto" valor={c.proyecto} opciones={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
           <label className="lean-campo lean-ancho"><span>Tarea</span><input value={c.titulo} onChange={set("titulo")} /></label>
-          <label className="lean-campo"><span>Responsable</span><input list="lean-responsables" value={c.responsable} onChange={set("responsable")} /></label>
+          <CampoLista etiqueta="Responsable" valor={c.responsable} opciones={responsables} vacio="Sin asignar" nuevo="+ Nuevo responsable…"
+            placeholder="Nombre del responsable" onCambio={(responsable) => setC({ ...c, responsable })} />
           <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>
           <label className="lean-campo"><span>Fin tentativa</span><input type="date" value={c.fin_tentativa} onChange={set("fin_tentativa")} /></label>
           <label className="lean-campo"><span>Completada el</span><input type="date" value={c.completada_el} onChange={set("completada_el")} /></label>
@@ -656,9 +660,10 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
     <form className="lean-nueva" onSubmit={crear}>
       <div className="i-label">Nueva tarea</div>
       <div className="lean-form">
-        <CampoProyecto etiqueta="Proyecto (opcional)" valor={c.proyecto} proyectos={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
+        <CampoLista etiqueta="Proyecto (opcional)" valor={c.proyecto} opciones={proyectos} onCambio={(proyecto) => setC({ ...c, proyecto })} />
         <label className="lean-campo lean-ancho"><span>Tarea</span><input value={c.titulo} onChange={set("titulo")} required /></label>
-        <label className="lean-campo"><span>Responsable</span><input list="lean-responsables" value={c.responsable} onChange={set("responsable")} /></label>
+        <CampoLista etiqueta="Responsable" valor={c.responsable} opciones={responsables} vacio="Sin asignar" nuevo="+ Nuevo responsable…"
+            placeholder="Nombre del responsable" onCambio={(responsable) => setC({ ...c, responsable })} />
         <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>
         <label className="lean-campo"><span>Fin tentativa</span><input type="date" value={c.fin_tentativa} onChange={set("fin_tentativa")} /></label>
         <div className="lean-form-acciones"><button className="btn btn-primary" disabled={!c.titulo.trim()}>Agregar</button></div>
@@ -668,18 +673,23 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
   );
 }
 
-// Proyecto: desplegable con todos los del tablero y la opción de escribir uno nuevo.
-function CampoProyecto({ etiqueta, valor, proyectos, onCambio }) {
+// Proyecto o responsable: desplegable con todos los ya usados en el tablero y la opción de escribir uno nuevo,
+// que después de guardarse queda en la lista.
+function CampoLista({ etiqueta, valor, opciones, onCambio, vacio = "Sin proyecto", nuevo: textoNuevo = "+ Nuevo proyecto…",
+  placeholder = "Nombre del proyecto nuevo" }) {
   const [nuevo, setNuevo] = useState(false);
-  // Apenas el proyecto nuevo tiene su primera tarea, pasa a la lista y queda elegido.
-  const enLista = proyectos.includes(valor);
-  if ((nuevo && !enLista) || (valor && !enLista)) {
+  // Apenas el nuevo tiene su primera tarea, pasa a la lista y queda elegido.
+  // Si ya existe con otra escritura (mayúsculas, acentos), se muestra la de la lista.
+  const enLista = opciones.includes(valor);
+  const enListaComo = valor && !enLista ? opciones.find((x) => clave(x) === clave(valor)) : null;
+  const elegido = enListaComo && !nuevo ? enListaComo : valor;
+  if ((nuevo && !enLista) || (valor && !enLista && !enListaComo)) {
     return (
       <label className="lean-campo">
         <span>{etiqueta} · nuevo</span>
         <span className="lean-nuevo-proyecto">
-          <input autoFocus value={valor} placeholder="Nombre del proyecto nuevo" onChange={(e) => onCambio(e.target.value)} />
-          <button type="button" className="lean-borrar" title="Volver a la lista" aria-label="Volver a la lista de proyectos"
+          <input autoFocus value={valor} placeholder={placeholder} onChange={(e) => onCambio(e.target.value)} />
+          <button type="button" className="lean-borrar" title="Volver a la lista" aria-label="Volver a la lista"
             onClick={() => { setNuevo(false); onCambio(""); }}>×</button>
         </span>
       </label>
@@ -688,10 +698,10 @@ function CampoProyecto({ etiqueta, valor, proyectos, onCambio }) {
   return (
     <label className="lean-campo">
       <span>{etiqueta}</span>
-      <select value={valor} onChange={(e) => { setNuevo(e.target.value === "__nuevo"); onCambio(e.target.value === "__nuevo" ? "" : e.target.value); }}>
-        <option value="">Sin proyecto</option>
-        {proyectos.map((p) => <option key={p} value={p}>{p}</option>)}
-        <option value="__nuevo">+ Nuevo proyecto…</option>
+      <select value={elegido} onChange={(e) => { setNuevo(e.target.value === "__nuevo"); onCambio(e.target.value === "__nuevo" ? "" : e.target.value); }}>
+        <option value="">{vacio}</option>
+        {opciones.map((p) => <option key={p} value={p}>{p}</option>)}
+        <option value="__nuevo">{textoNuevo}</option>
       </select>
     </label>
   );

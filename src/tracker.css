@@ -256,3 +256,10 @@ a.topbar-inicio:hover{ text-decoration:underline; }
 .lean-nota-editar{ margin-left:0; flex:none; }
 .lean-notas li.lean-nota-editando{ align-items:center; flex-wrap:wrap; }
 .lean-nota-editando .lean-nota-texto{ flex:1; min-width:200px; }
+
+/* MoM: notas del período */
+.mom-periodo{ margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border-divider); align-items:flex-end; }
+.mom-periodo-ayuda{ flex-basis:100%; margin:0; }
+.mom-previas{ margin:4px 0 6px; padding:0 0 0 22px; }
+.mom-previas li{ padding:3px 0; }
+.mom-previas .lean-nota-cuerpo{ font-size:13px; color:var(--text-muted); }

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
    Se arrastran tareas del tablero (o se crean ahí mismo) a la minuta y se anota cada una. Al guardar,
    cada nota queda en la bitácora de su tarea (lean_notas, con la fecha de la reunión) y la reunión
    (lean_reuniones) guarda el orden, para volver a copiar la minuta para un mail.
-   El borrador se guarda en el navegador mientras se arma, por si se recarga la página en plena call. */
+   El borrador se guarda en el navegador mientras se arma, por si se recarga la página en plena call.
+   "Traer notas": con un período (desde/hasta, por la fecha de la nota) cada tarea de la minuta muestra las
+   notas de su bitácora de esas fechas, y entran en el mail. Esas notas ya están guardadas: no se duplican. */
 
 const fmt = (iso) => (iso ? iso.slice(0, 10).split("-").reverse().join(".") : "—");
 const hoyIso = () => {
@@ -13,20 +15,24 @@ const hoyIso = () => {
 };
 const escapar = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const lineas = (texto) => texto.split("\n").map((l) => l.trim()).filter(Boolean);
+const fmtCorta = (iso) => iso.slice(5, 10).split("-").reverse().join("/");
+// Notas de la bitácora en el período: si "hasta" está vacío o es igual a "desde", es ese día.
+const enPeriodo = (n, desde, hasta) => !!desde && n.fecha >= desde && n.fecha <= (hasta || desde);
+const ordenFecha = (a, b) => a.fecha.localeCompare(b.fecha) || a.created_at.localeCompare(b.created_at);
 
 // Minuta en dos formatos: HTML (pega con formato en Outlook) y texto plano.
-function armarMinuta({ titulo, fecha, asistentes, items }, ESTADOS) {
+function armarMinuta({ titulo, fecha, asistentes, items, periodo }, ESTADOS) {
   const meta = (t) => [t.responsable && `Resp.: ${t.responsable}`, t.fin_tentativa && `Fin: ${fmt(t.fin_tentativa)}`,
     ESTADOS[t.estado]?.nombre].filter(Boolean).join(" · ");
   const texto = [
-    `MoM — ${titulo}`, `Fecha: ${fmt(fecha)}`, asistentes ? `Asistentes: ${asistentes}` : null, "",
+    `MoM — ${titulo}`, `Fecha: ${fmt(fecha)}`, asistentes ? `Asistentes: ${asistentes}` : null, periodo ? `Notas: ${periodo}` : null, "",
     ...items.flatMap(({ tarea, notas }, i) => [
       `${i + 1}. ${tarea.titulo}${meta(tarea) ? ` (${meta(tarea)})` : ""}`,
       ...(notas.length ? notas.map((n) => `   - ${n}`) : ["   - Sin novedades"]),
     ]),
   ].filter((l) => l !== null).join("\n");
   const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">`
-    + `<p><b>MoM — ${escapar(titulo)}</b><br>Fecha: ${fmt(fecha)}${asistentes ? `<br>Asistentes: ${escapar(asistentes)}` : ""}</p><ol>`
+    + `<p><b>MoM — ${escapar(titulo)}</b><br>Fecha: ${fmt(fecha)}${asistentes ? `<br>Asistentes: ${escapar(asistentes)}` : ""}${periodo ? `<br>Notas: ${escapar(periodo)}` : ""}</p><ol>`
     + items.map(({ tarea, notas }) => `<li><b>${escapar(tarea.titulo)}</b>${meta(tarea) ? ` <span style="color:#666">(${escapar(meta(tarea))})</span>` : ""}`
       + `<ul>${(notas.length ? notas : ["Sin novedades"]).map((n) => `<li>${escapar(n)}</li>`).join("")}</ul></li>`).join("")
     + `</ol></div>`;
@@ -44,7 +50,7 @@ async function copiar({ texto, html }) {
   }
 }
 
-const VACIO = () => ({ titulo: "", fecha: hoyIso(), asistentes: "", items: [] });
+const VACIO = () => ({ titulo: "", fecha: hoyIso(), asistentes: "", desde: "", hasta: "", items: [] });
 
 export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, responsables, onCrearTarea, onGuardar, onBorrarReunion, onCerrar, email }) {
   const clave = `mom-${tablero.id}`;
@@ -67,6 +73,13 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
     .filter((t) => !enMinuta.has(t.id))
     .filter((t) => conCompletadas || t.estado !== "completada")
     .filter((t) => !buscar || `${t.titulo} ${t.responsable} ${t.proyecto}`.toLowerCase().includes(buscar.toLowerCase()));
+
+  const desde = m.desde ?? "";
+  const hasta = m.hasta ?? "";
+  const periodoInvalido = desde && hasta && hasta < desde;
+  const notasPeriodo = (tareaId) => (periodoInvalido ? [] : notas.filter((n) => n.tarea_id === tareaId && enPeriodo(n, desde, hasta)).sort(ordenFecha));
+  const conNotasEnPeriodo = periodoInvalido || !desde ? [] : tareas.filter((t) => !enMinuta.has(t.id) && notasPeriodo(t.id).length);
+  const periodo = !desde || periodoInvalido ? "" : !hasta || hasta === desde ? `del ${fmt(desde)}` : `del ${fmt(desde)} al ${fmt(hasta)}`;
 
   const set = (k, v) => setM((x) => ({ ...x, [k]: v }));
   const agregar = (tareaId, en = items.length) => setM((x) => {
@@ -100,7 +113,10 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
     if (id) { agregar(id); setNueva({ titulo: "", responsable: "", fin_tentativa: "" }); }
   };
 
-  const minuta = () => armarMinuta({ ...m, titulo: m.titulo.trim() || "Reunión", items: items.map((i) => ({ tarea: porId[i.tareaId], notas: lineas(i.texto) })) }, ESTADOS);
+  const agregarConNotas = () => setM((x) => ({ ...x, items: [...x.items, ...conNotasEnPeriodo.map((t) => ({ tareaId: t.id, texto: "" }))] }));
+  // En el mail: primero las notas del período (con su fecha), después lo anotado en la reunión.
+  const minuta = () => armarMinuta({ ...m, periodo, titulo: m.titulo.trim() || "Reunión", items: items.map((i) => ({ tarea: porId[i.tareaId],
+    notas: [...notasPeriodo(i.tareaId).flatMap((n) => lineas(n.texto).map((l) => `(${fmtCorta(n.fecha)}) ${l}`)), ...lineas(i.texto)] })) }, ESTADOS);
   const avisar = (t) => { setAviso(t); setTimeout(() => setAviso(""), 3000); };
   const copiarBorrador = async () => { await copiar(minuta()); avisar("Minuta copiada: pegala en el mail."); };
 
@@ -134,6 +150,29 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
           <label className="lean-campo"><span>Fecha</span><input type="date" value={m.fecha} onChange={(e) => set("fecha", e.target.value)} /></label>
           <label className="lean-campo lean-ancho"><span>Asistentes</span>
             <input value={m.asistentes} onChange={(e) => set("asistentes", e.target.value)} placeholder="Federico, Sergio, Juan" /></label>
+        </div>
+        <div className="lean-form mom-periodo">
+          <label className="lean-campo"><span>Traer notas desde</span>
+            <input type="date" value={desde} onChange={(e) => set("desde", e.target.value)} /></label>
+          <label className="lean-campo"><span>Hasta</span>
+            <input type="date" value={hasta} min={desde || undefined} onChange={(e) => set("hasta", e.target.value)} /></label>
+          {conNotasEnPeriodo.length > 0 && (
+            <div className="lean-form-acciones">
+              <button type="button" className="btn btn-secondary" onClick={agregarConNotas}>
+                Agregar {conNotasEnPeriodo.length === 1 ? "la tarea" : `las ${conNotasEnPeriodo.length} tareas`} con notas en el período
+              </button>
+            </div>
+          )}
+          {(desde || hasta) && (
+            <div className="lean-form-acciones">
+              <button type="button" className="btn btn-secondary" onClick={() => setM((x) => ({ ...x, desde: "", hasta: "" }))}>Sin notas anteriores</button>
+            </div>
+          )}
+          <p className="lean-ayuda mom-periodo-ayuda">
+            {periodoInvalido ? "La fecha \"hasta\" es anterior a \"desde\"."
+              : desde ? `Cada tarea de la minuta muestra sus notas ${periodo} y entran en el mail. Si "hasta" queda vacío o igual, es ese día.`
+              : "Elegí un período para traer a la minuta las notas que ya están cargadas en las tareas."}
+          </p>
         </div>
       </div>
 
@@ -184,6 +223,16 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
                         <button type="button" className="lean-borrar" onClick={() => quitar(i.tareaId)} aria-label="Quitar de la minuta" title="Quitar">×</button>
                       </span>
                     </div>
+                    {notasPeriodo(i.tareaId).length > 0 && (
+                      <ol className="lean-notas mom-previas">
+                        {notasPeriodo(i.tareaId).map((n) => (
+                          <li key={n.id}>
+                            <span className="lean-nota-dia mono">{fmtCorta(n.fecha)}</span>
+                            <span className="lean-nota-cuerpo">{n.texto}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                     <textarea className="lean-nota-texto mom-texto" value={i.texto} rows={2} onChange={(e) => setTexto(i.tareaId, e.target.value)}
                       placeholder="Notas (cada renglón es un punto en el mail)" aria-label={`Notas de ${t.titulo}`} />
                   </li>

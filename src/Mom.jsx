@@ -19,6 +19,9 @@ const fmtCorta = (iso) => iso.slice(5, 10).split("-").reverse().join("/");
 // Notas de la bitácora en el período: si "hasta" está vacío o es igual a "desde", es ese día.
 const enPeriodo = (n, desde, hasta) => !!desde && n.fecha >= desde && n.fecha <= (hasta || desde);
 const ordenFecha = (a, b) => a.fecha.localeCompare(b.fecha) || a.created_at.localeCompare(b.created_at);
+const textoPeriodo = (desde, hasta) => (!desde ? "" : !hasta || hasta === desde ? `del ${fmt(desde)}` : `del ${fmt(desde)} al ${fmt(hasta)}`);
+// En el mail, cada renglón de una nota del período lleva su fecha adelante.
+const lineasConFecha = (lista) => lista.flatMap((n) => lineas(n.texto).map((l) => `(${fmtCorta(n.fecha)}) ${l}`));
 
 // Minuta en dos formatos: HTML (pega con formato en Outlook) y texto plano.
 function armarMinuta({ titulo, fecha, asistentes, items, periodo }, ESTADOS) {
@@ -79,7 +82,7 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
   const periodoInvalido = desde && hasta && hasta < desde;
   const notasPeriodo = (tareaId) => (periodoInvalido ? [] : notas.filter((n) => n.tarea_id === tareaId && enPeriodo(n, desde, hasta)).sort(ordenFecha));
   const conNotasEnPeriodo = periodoInvalido || !desde ? [] : tareas.filter((t) => !enMinuta.has(t.id) && notasPeriodo(t.id).length);
-  const periodo = !desde || periodoInvalido ? "" : !hasta || hasta === desde ? `del ${fmt(desde)}` : `del ${fmt(desde)} al ${fmt(hasta)}`;
+  const periodo = periodoInvalido ? "" : textoPeriodo(desde, hasta);
 
   const set = (k, v) => setM((x) => ({ ...x, [k]: v }));
   const agregar = (tareaId, en = items.length) => setM((x) => {
@@ -116,13 +119,14 @@ export default function Mom({ tablero, tareas, notas, reuniones, ESTADOS, respon
   const agregarConNotas = () => setM((x) => ({ ...x, items: [...x.items, ...conNotasEnPeriodo.map((t) => ({ tareaId: t.id, texto: "" }))] }));
   // En el mail: primero las notas del período (con su fecha), después lo anotado en la reunión.
   const minuta = () => armarMinuta({ ...m, periodo, titulo: m.titulo.trim() || "Reunión", items: items.map((i) => ({ tarea: porId[i.tareaId],
-    notas: [...notasPeriodo(i.tareaId).flatMap((n) => lineas(n.texto).map((l) => `(${fmtCorta(n.fecha)}) ${l}`)), ...lineas(i.texto)] })) }, ESTADOS);
+    notas: [...lineasConFecha(notasPeriodo(i.tareaId)), ...lineas(i.texto)] })) }, ESTADOS);
   const avisar = (t) => { setAviso(t); setTimeout(() => setAviso(""), 3000); };
   const copiarBorrador = async () => { await copiar(minuta()); avisar("Minuta copiada: pegala en el mail."); };
 
   const guardar = async () => {
     setGuardando(true);
     const ok = await onGuardar({ titulo: m.titulo.trim(), fecha: m.fecha, asistentes: m.asistentes.trim(),
+      notas_desde: desde && !periodoInvalido ? desde : null, notas_hasta: desde && !periodoInvalido ? hasta || desde : null,
       items: items.map((i) => ({ tareaId: i.tareaId, texto: i.texto.trim() })) });
     setGuardando(false);
     if (ok) {
@@ -261,11 +265,15 @@ function Anteriores({ reuniones, porId, notas, ESTADOS, email, onBorrar }) {
   const [copiada, setCopiada] = useState(null);
   if (!reuniones.length) return null;
   const copiarReunion = async (r) => {
+    // Notas del período que se trajo: las de la bitácora en esas fechas, cargadas hasta que se guardó la reunión
+    // (sin las de la propia reunión, que van después).
+    const delPeriodo = (id) => notas.filter((n) => n.tarea_id === id && n.reunion_id !== r.id && enPeriodo(n, r.notas_desde, r.notas_hasta)
+      && n.created_at <= r.created_at).sort(ordenFecha);
     const items = r.tareas.filter((id) => porId[id]).map((id) => ({
       tarea: porId[id],
-      notas: notas.filter((n) => n.reunion_id === r.id && n.tarea_id === id).flatMap((n) => lineas(n.texto)),
+      notas: [...lineasConFecha(delPeriodo(id)), ...notas.filter((n) => n.reunion_id === r.id && n.tarea_id === id).flatMap((n) => lineas(n.texto))],
     }));
-    await copiar(armarMinuta({ ...r, items }, ESTADOS));
+    await copiar(armarMinuta({ ...r, items, periodo: textoPeriodo(r.notas_desde, r.notas_hasta) }, ESTADOS));
     setCopiada(r.id);
     setTimeout(() => setCopiada(null), 2000);
   };
@@ -277,7 +285,8 @@ function Anteriores({ reuniones, porId, notas, ESTADOS, email, onBorrar }) {
           <li key={r.id}>
             <span className="mono">{fmt(r.fecha)}</span>
             <span>{r.titulo}</span>
-            <span className="lean-ayuda">{r.tareas.length} {r.tareas.length === 1 ? "tarea" : "tareas"}</span>
+            <span className="lean-ayuda">{r.tareas.length} {r.tareas.length === 1 ? "tarea" : "tareas"}
+              {r.notas_desde ? ` · notas ${textoPeriodo(r.notas_desde, r.notas_hasta)}` : ""}</span>
             <button type="button" className="lean-adjunto" onClick={() => copiarReunion(r)}>{copiada === r.id ? "Copiada" : "Copiar para mail"}</button>
             {r.creado_por === email && (
               <button type="button" className="lean-borrar" onClick={() => onBorrar(r)} aria-label={`Borrar la minuta ${r.titulo}`}

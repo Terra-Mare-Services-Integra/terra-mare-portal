@@ -187,10 +187,10 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
 
   // Guardar la MoM: la reunión con el orden de las tareas y una nota por tarea en su bitácora.
   // Si fallan las notas, se borra la reunión para no dejar una minuta a medias.
-  const guardarMom = async ({ titulo, fecha, asistentes, items }) => {
+  const guardarMom = async ({ titulo, fecha, asistentes, notas_desde, notas_hasta, items }) => {
     setError("");
     try {
-      const r = ok(await supabase.from("lean_reuniones").insert({ tablero_id: tablero.id, titulo: titulo || "Reunión", fecha, asistentes,
+      const r = ok(await supabase.from("lean_reuniones").insert({ tablero_id: tablero.id, titulo: titulo || "Reunión", fecha, asistentes, notas_desde, notas_hasta,
         tareas: items.map((i) => i.tareaId) }).select("id").single());
       const filas = items.filter((i) => i.texto).map((i) => ({ tarea_id: i.tareaId, fecha, texto: i.texto, reunion_id: r.id }));
       if (filas.length) {

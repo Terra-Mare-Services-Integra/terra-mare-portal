@@ -64,6 +64,7 @@
 .lean-vacio{ color:var(--n-600); }
 .lean-acciones{ white-space:nowrap; text-align:right; }
 .lean-acciones .btn + .btn{ margin-left:6px; }
+@media (max-width:900px){ .lean-acc-btns{ display:contents; } }
 .lean-chico{ height:30px; padding:0 10px; font-size:13px; }
 .lean-borrar{ border:0; background:none; color:var(--n-600); font-size:20px; line-height:1; cursor:pointer; padding:4px 8px; margin-left:4px; }
 .lean-borrar:hover{ color:var(--state-error); }
@@ -191,9 +192,11 @@ a.topbar-inicio:hover{ text-decoration:underline; }
   .lean-nota-texto{ flex:1 1 100%; order:3; }
   }
 @media (min-width:901px){
-  .lean-tabla .lean-acciones{ white-space:nowrap; width:1%; padding-left:6px; }
-  .lean-tabla .lean-acciones .btn{ margin:0 0 0 4px; padding:0 8px; }
-  .lean-tabla .lean-acciones .lean-borrar{ margin-left:2px; padding:4px 4px; }
+  /* Los botones bajan a un segundo renglón si no entran, en vez de cortar la tabla a la derecha */
+  .lean-tabla .lean-acciones{ white-space:normal; padding-left:6px; }
+  .lean-acc-btns{ display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:4px; min-width:250px; }
+  .lean-tabla .lean-acciones .btn{ margin:0; padding:0 8px; }
+  .lean-tabla .lean-acciones .lean-borrar{ margin:0; padding:4px 4px; }
 }
 
 /* Flechita para desplegar las notas de la tarea */

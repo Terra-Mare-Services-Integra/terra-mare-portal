@@ -248,3 +248,11 @@ a.topbar-inicio:hover{ text-decoration:underline; }
   .mom-lista{ max-height:260px; overflow:auto; }
   .mom-acciones .btn{ flex:1 1 auto; }
 }
+
+/* Admin: renombrar proyecto y editar notas */
+.lean-grupo-editar, .lean-nota-editar{ margin-left:10px; border:0; background:none; padding:0; cursor:pointer;
+  font:500 12px/1.2 var(--font-sans); color:var(--text-muted); text-decoration:underline; text-underline-offset:2px; }
+.lean-grupo-editar:hover, .lean-nota-editar:hover{ color:var(--text-title); }
+.lean-nota-editar{ margin-left:0; flex:none; }
+.lean-notas li.lean-nota-editando{ align-items:center; flex-wrap:wrap; }
+.lean-nota-editando .lean-nota-texto{ flex:1; min-width:200px; }

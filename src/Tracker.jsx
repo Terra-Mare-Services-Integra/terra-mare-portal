@@ -36,6 +36,8 @@ export default function Tracker({ user }) {
   const [tableros, setTableros] = useState(null);
   const [activo, setActivo] = useState(() => { try { return localStorage.getItem("lean-tablero"); } catch { return null; } });
   const [error, setError] = useState("");
+  const [adminPortal, setAdminPortal] = useState(false);
+  useEffect(() => { supabase.rpc("tm_es_admin").then(({ data }) => setAdminPortal(data === true)); }, []);
 
   const leerTableros = async () => ok(await supabase.from("lean_tableros").select("id, nombre, creado_por, principal").order("created_at"))
     .sort((a, b) => Number(b.principal) - Number(a.principal));
@@ -87,13 +89,13 @@ export default function Tracker({ user }) {
         <div className="aside-empty">Todavía no sos miembro de ningún tablero. Creá uno o pedile a quien lo administra que te sume.</div>
       )}
       {activo && tableros?.some((t) => t.id === activo) && (
-        <Tablero key={activo} tablero={tableros.find((t) => t.id === activo)} tableros={tableros} email={email} onCambioTableros={cargarTableros} />
+        <Tablero key={activo} tablero={tableros.find((t) => t.id === activo)} tableros={tableros} email={email} adminPortal={adminPortal} onCambioTableros={cargarTableros} />
       )}
     </div>
   );
 }
 
-function Tablero({ tablero, tableros, email, onCambioTableros }) {
+function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
   const [tareas, setTareas] = useState(null);
   const [proyectosPrincipal, setProyectosPrincipal] = useState([]);
   const [filtroTablero, setFiltroTablero] = useState("");
@@ -143,6 +145,8 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
   }, [tablero.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const esAdmin = miembros.some((m) => m.email === email && m.rol === "admin");
+  // Renombrar proyectos y editar notas: admin del tablero o admin del portal.
+  const administra = esAdmin || adminPortal;
   const accion = async (fn) => {
     setError("");
     try { await fn(); await cargar(); } catch (e) { setError(e.message); }
@@ -156,6 +160,16 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
     .reduce((lista, p) => (lista.some((x) => clave(x) === clave(p)) ? lista : [...lista, p]), [])
     .sort((a, b) => a.localeCompare(b));
   const nombreTablero = (id) => tableros.find((t) => t.id === id)?.nombre ?? "otro tablero";
+  // Renombra el proyecto en todas las tareas del tablero que lo tienen (con cualquier escritura).
+  // Si el nombre nuevo ya es otro proyecto, las tareas se suman a ese.
+  const renombrarProyecto = (viejo) => {
+    const nombre = prompt(`Nuevo nombre del proyecto "${viejo}"`, viejo)?.trim();
+    if (!nombre || nombre === viejo) return;
+    const existente = proyectos.find((x) => clave(x) === clave(nombre) && clave(x) !== clave(viejo));
+    if (existente && !confirm(`Ya existe el proyecto "${existente}". ¿Pasar las tareas de "${viejo}" a ese proyecto?`)) return;
+    const ids = conEstado.filter((t) => t.proyecto && clave(t.proyecto) === clave(viejo)).map((t) => t.id);
+    accion(async () => ok(await supabase.from("lean_tareas").update({ proyecto: existente ?? nombre }).in("id", ids)));
+  };
   const otrosTableros = tablero.principal ? [...new Set(conEstado.map((t) => t.tablero_id))].filter((id) => id !== tablero.id) : [];
 
   const visibles = conEstado
@@ -270,7 +284,11 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
             </thead>
             {grupos.map(([proyecto, lista]) => (
               <tbody key={proyecto || "-"}>
-                <tr className="lean-grupo"><td colSpan={8}>{proyecto || "Sin proyecto"}<span className="lean-grupo-n">{lista.length}</span></td></tr>
+                <tr className="lean-grupo"><td colSpan={8}>{proyecto || "Sin proyecto"}<span className="lean-grupo-n">{lista.length}</span>
+                  {administra && proyecto && (
+                    <button type="button" className="lean-grupo-editar" onClick={() => renombrarProyecto(proyecto)}
+                      title="Cambiar el nombre del proyecto en todas sus tareas">Renombrar</button>
+                  )}</td></tr>
                 {lista.map((t) => editando === t.id ? (
                   <FilaEdicion key={t.id} tarea={t} responsables={responsables} proyectos={proyectos}
                     onCancelar={() => setEditando(null)}
@@ -295,6 +313,11 @@ function Tablero({ tablero, tableros, email, onCambioTableros }) {
                     reunionDe={(id) => reuniones.find((r) => r.id === id)?.titulo}
                     autorDe={(e) => miembros.find((m) => m.email === e)?.nombre || e.replace(/@.*$/, "")}
                     email={email}
+                    puedeEditarNotas={administra}
+                    onEditarNota={(n, cambios) => accion(async () => {
+                      if (!ok(await supabase.from("lean_notas").update(cambios).eq("id", n.id).select("id")).length)
+                        throw new Error("No se pudo editar la nota: solo un administrador del tablero puede hacerlo.");
+                    })}
                     onAgregarNota={(fecha, texto) => accion(async () => ok(await supabase.from("lean_notas").insert({ tarea_id: t.id, fecha, texto })))}
                     onBorrarNota={(n) => confirm("¿Borrar esta nota?") && accion(async () => {
                       // La base solo deja borrar notas propias de los últimos 15 minutos: si no borró nada, avisar.
@@ -347,7 +370,7 @@ function Kpi({ estado, n, onClick, activo }) {
 // Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
 function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir,
   adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar,
-  notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, autorDe, reunionDe, email }) {
+  notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, onEditarNota, puedeEditarNotas, autorDe, reunionDe, email }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
   const compartida = t.compartida_con ?? [];
@@ -395,7 +418,8 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
     </tr>
     {verNotas && (
       <PanelNotas notas={notas} compacto={verNotas === "reunion"} hoy={hoy} email={email} autorDe={autorDe} reunionDe={reunionDe}
-        onAgregar={onAgregarNota} onBorrar={onBorrarNota} onVerTodas={onAbrirNotas} />
+        onAgregar={onAgregarNota} onBorrar={onBorrarNota} onVerTodas={onAbrirNotas}
+        puedeEditar={puedeEditarNotas} onEditar={onEditarNota} />
     )}
     {verAdjuntos && (
       <PanelAdjuntos adjuntos={adjuntos} onAgregarLink={onAgregarLink} onSubirArchivo={onSubirArchivo}
@@ -431,11 +455,19 @@ const cargada = (ts) => {
   return `${dd(d.getDate())}.${dd(d.getMonth() + 1)}.${d.getFullYear()} ${dd(d.getHours())}:${dd(d.getMinutes())}`;
 };
 
-function PanelNotas({ notas, compacto, hoy, email, autorDe, reunionDe, onAgregar, onBorrar, onVerTodas }) {
+function PanelNotas({ notas, compacto, hoy, email, autorDe, reunionDe, onAgregar, onBorrar, onVerTodas, puedeEditar, onEditar }) {
   const [fecha, setFecha] = useState(hoy);
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const caja = useRef(null);
+  const [editando, setEditando] = useState(null);   // { id, fecha, texto } de la nota que corrige un admin
+  const guardarEdicion = async () => {
+    const n = notas.find((x) => x.id === editando.id);
+    const texto = editando.texto.trim();
+    if (!texto) return;
+    if (texto !== n.texto || editando.fecha !== n.fecha) await onEditar(n, { texto, fecha: editando.fecha || n.fecha });
+    setEditando(null);
+  };
   const visibles = compacto ? notas.slice(0, 3) : notas;
   // Reloj para saber qué notas propias todavía se pueden borrar; se actualiza cada 30 segundos.
   const [ahora, setAhora] = useState(() => Date.now());
@@ -468,13 +500,33 @@ function PanelNotas({ notas, compacto, hoy, email, autorDe, reunionDe, onAgregar
           <ol className="lean-notas">
             {visibles.map((n) => {
               const borrable = n.autor === email && ahora - Date.parse(n.created_at) < BORRABLE_MS;
+              if (editando?.id === n.id) {
+                return (
+                  <li key={n.id} className="lean-nota-editando">
+                    <input type="date" className="lean-nota-fecha" aria-label="Fecha de la nota" value={editando.fecha}
+                      onChange={(e) => setEditando({ ...editando, fecha: e.target.value })} />
+                    <textarea className="lean-nota-texto" rows={2} autoFocus aria-label="Texto de la nota" value={editando.texto}
+                      onChange={(e) => setEditando({ ...editando, texto: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setEditando(null);
+                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); guardarEdicion(); }
+                      }} />
+                    <button type="button" className="btn btn-primary lean-chico" disabled={!editando.texto.trim()} onClick={guardarEdicion}>Guardar</button>
+                    <button type="button" className="btn btn-secondary lean-chico" onClick={() => setEditando(null)}>Cancelar</button>
+                  </li>
+                );
+              }
               return (
                 <li key={n.id}>
                   <span className="lean-nota-dia mono">{fmtCorta(n.fecha)}</span>
                   <span className="lean-nota-cuerpo">
                     {n.texto}
-                    <span className="lean-nota-meta">{autorDe(n.autor)} · cargada {cargada(n.created_at)}{n.reunion_id && reunionDe(n.reunion_id) ? ` · MoM “${reunionDe(n.reunion_id)}”` : ""}</span>
+                    <span className="lean-nota-meta">{autorDe(n.autor)} · cargada {cargada(n.created_at)}{n.reunion_id && reunionDe(n.reunion_id) ? ` · MoM “${reunionDe(n.reunion_id)}”` : ""}{n.editada_el ? ` · editada por ${autorDe(n.editada_por)} el ${cargada(n.editada_el)}` : ""}</span>
                   </span>
+                  {puedeEditar && !compacto && (
+                    <button type="button" className="lean-nota-editar" onClick={() => setEditando({ id: n.id, fecha: n.fecha, texto: n.texto })}
+                      aria-label="Editar nota" title="Editar (administrador)">Editar</button>
+                  )}
                   {borrable && <button type="button" className="lean-borrar" onClick={() => onBorrar(n)} aria-label="Borrar nota" title="Borrar (solo en los primeros 15 minutos)">×</button>}
                 </li>
               );
@@ -485,7 +537,9 @@ function PanelNotas({ notas, compacto, hoy, email, autorDe, reunionDe, onAgregar
           <button type="button" className="lean-adjunto" onClick={onVerTodas}>Ver las {notas.length} notas</button>
         )}
         {!compacto && notas.length > 0 && (
-          <p className="lean-ayuda">Las notas quedan como historia y no se editan. Una nota tuya se puede borrar solo en los primeros 15 minutos.</p>
+          <p className="lean-ayuda">{puedeEditar
+            ? "Como administrador podés corregir cualquier nota: queda registrado quién la editó y cuándo."
+            : "Las notas quedan como historia y solo las corrige un administrador. Una nota tuya se puede borrar en los primeros 15 minutos."}</p>
         )}
       </td>
     </tr>

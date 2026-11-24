@@ -13,6 +13,9 @@ const ROLES_GASTOS = [["", "Sin acceso"], ["gastos", "Carga"], ["gastos-consolid
 // Calculadora de sueldos: "sueldos" la usa; "sueldos-edita" además carga actas, divisas y parámetros.
 const ROLES_SUELDOS = [["", "Sin acceso"], ["sueldos", "Uso"], ["sueldos-edita", "Uso y carga de escalas"]];
 const rolSueldos = (modulos) => (modulos.includes("sueldos-edita") ? "sueldos-edita" : modulos.includes("sueldos") ? "sueldos" : "");
+// TM Distributor: "distributor" ve todo; "distributor-edita" además carga presupuestos, facturas, giros y pagos.
+const ROLES_DIST = [["", "Sin acceso"], ["distributor", "Solo lectura"], ["distributor-edita", "Edición"]];
+const rolDist = (modulos) => (modulos.includes("distributor-edita") ? "distributor-edita" : modulos.includes("distributor") ? "distributor" : "");
 const rolGastos = (modulos) => (modulos.includes("gastos-consolida") ? "gastos-consolida" : modulos.includes("gastos") ? "gastos" : "");
 
 export default function AdminTerraMare() {
@@ -62,6 +65,10 @@ export default function AdminTerraMare() {
   });
   const cambiarSueldos = (u, rol) => cambiar(u, async () => {
     const modulos = [...u.modulos.filter((m) => m !== "sueldos" && m !== "sueldos-edita"), ...(rol ? [rol] : [])];
+    ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
+  });
+  const cambiarDist = (u, rol) => cambiar(u, async () => {
+    const modulos = [...u.modulos.filter((m) => m !== "distributor" && m !== "distributor-edita"), ...(rol ? [rol] : [])];
     ok(await supabase.from("tm_accesos").update({ modulos, updated_at: new Date().toISOString() }).eq("user_id", u.user_id));
   });
   const cambiarLm = (u, rol) => cambiar(u, async () => {
@@ -115,6 +122,7 @@ export default function AdminTerraMare() {
               <th>Tracker Lean</th>
               <th>Gastos</th>
               <th>Sueldos</th>
+              <th>Distributor</th>
               {tableros.map((t) => <th key={t.id} className="admin-tablero">Tablero<br />{t.nombre}</th>)}
             </tr>
           </thead>
@@ -155,6 +163,13 @@ export default function AdminTerraMare() {
                       {ROLES_SUELDOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
                     </select>
                   </td>
+                  <td data-l="Distributor">
+                    <select className="admin-select" aria-label={`TM Distributor para ${u.email}`} value={rolDist(u.modulos)}
+                      disabled={ocupado || !u.portal} onChange={(e) => cambiarDist(u, e.target.value)}
+                      title={u.portal ? "" : "Primero dale acceso al portal"}>
+                      {ROLES_DIST.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                    </select>
+                  </td>
                   {tableros.map((t) => (
                     <td key={t.id} data-l={`Tablero ${t.nombre}`}>
                       <input type="checkbox" aria-label={`Tablero ${t.nombre} para ${u.email}`} checked={u.tableros.includes(t.id)}
@@ -175,7 +190,7 @@ export default function AdminTerraMare() {
         "Solo lectura" ve Resultado y Dashboards.
         Gastos: "Carga" rinde sus propios gastos; "Carga y tesorería" además ve los de todos, concilia los resúmenes
         de tarjeta y marca los reembolsos pagados. Sueldos: "Uso" calcula y guarda tripulaciones; "Uso y carga de escalas" además
-        carga actas, divisas, parámetros y overrides (todo queda en el log de cambios). Los gastos los aprueban los administradores. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
+        carga actas, divisas, parámetros y overrides (todo queda en el log de cambios). Distributor: "Solo lectura" ve presupuestos, facturas, cuenta y cashflow; "Edición" además carga. Los gastos los aprueban los administradores. El rol de cada miembro en un tablero se cambia desde el tablero, en "Miembros".
       </p>
     </div>
   );

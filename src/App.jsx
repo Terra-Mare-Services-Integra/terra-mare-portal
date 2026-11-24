@@ -24,6 +24,9 @@ const MODULOS = [
   { id:"sueldos", codigo:"SU", nombre:"Calculadora de sueldos",
     descripcion:"Crewing, liquidación por régimen y escalas FENA/FESIMAF con log de cambios.",
     estado:"activo", url:"https://integra.sueldos.terra-mare.com.ar" },
+  { id:"distributor", codigo:"DI", nombre:"TM Distributor",
+    descripcion:"Lancha M/V DISTRIBUTOR: presupuestos, facturas, cuenta con Magrausa y cashflow.",
+    estado:"activo", url:"https://tm-distributor.vercel.app" },
 ];
 
 /* Ruta interna del portal (#/tracker). */
@@ -307,6 +310,7 @@ function Portal({ user, permisos, onLogout }) {
   const tieneAcceso = (id) => permisos.admin || (id === "loading-masters" ? !!permisos.lm
     : id === "gastos" ? permisos.modulos.some((m) => m === "gastos" || m === "gastos-consolida")
     : id === "sueldos" ? permisos.modulos.some((m) => m === "sueldos" || m === "sueldos-edita")
+    : id === "distributor" ? permisos.modulos.some((m) => m === "distributor" || m === "distributor-edita")
     : permisos.modulos.includes(id));
   const nombre      = perfil?.nombre || user.email;
   const primerNombre = (perfil?.nombre || "").split(" ")[0];

@@ -33,7 +33,7 @@ export default function AdminTerraMare() {
   const aplicar = ([u, t]) => { setUsuarios(u); setTableros(t); };
   useEffect(() => {
     leer().then(aplicar, (e) => setError(e.message));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cada cambio se guarda al instante; después se vuelve a leer lo que quedó en la base.
   const cambiar = async (u, fn) => {

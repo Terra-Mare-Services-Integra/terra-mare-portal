@@ -51,7 +51,6 @@ const Ico = ({ d, size = 18 }) => (
     {d}
   </svg>
 );
-const IcoSearch  = () => <Ico size={16} d={<><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></>} />;
 const IcoBell    = () => <Ico d={<><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>} />;
 const IcoHelp    = () => <Ico d={<><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.3c-.7.4-1.1 1-1.1 1.7v.3" /><path d="M12 17.5h.01" /></>} />;
 
@@ -493,12 +492,33 @@ function Portal({ user, permisos, onLogout }) {
 }
 
 /* ─── APP ───────────────────────────────────────────────────────────────────── */
+// Supabase de Terra Mare: entra quien tiene fila en tm_accesos (o es admin); sus módulos están ahí.
+// Loading Masters: rol en la app (editor o lector). Admins: tm_admins.
+async function leerPermisos(userId) {
+  try {
+    const [accesos, admin, lm] = await Promise.all([
+      supabase.from("tm_accesos").select("modulos").eq("user_id", userId).maybeSingle(),
+      supabase.rpc("tm_es_admin"),
+      supabase.rpc("rol_usuario"),
+    ]);
+    return {
+      admin: admin.data === true,
+      terramare: !!accesos.data,
+      modulos: accesos.data?.modulos ?? [],
+      lm: lm.data ?? null,
+    };
+  } catch {
+    return { admin: false, terramare: false, modulos: [], lm: null };
+  }
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [permisos, setPermisos] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadPermisos = (userId) => leerPermisos(userId).then((p) => { setPermisos(p); setLoading(false); });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadPermisos(session.user.id);
@@ -513,28 +533,6 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Supabase de Terra Mare: entra quien tiene fila en tm_accesos (o es admin); sus módulos están ahí.
-  // Loading Masters: rol en la app (editor o lector). Admins: tm_admins.
-  const loadPermisos = async (userId) => {
-    try {
-      const [accesos, admin, lm] = await Promise.all([
-        supabase.from("tm_accesos").select("modulos").eq("user_id", userId).maybeSingle(),
-        supabase.rpc("tm_es_admin"),
-        supabase.rpc("rol_usuario"),
-      ]);
-      setPermisos({
-        admin: admin.data === true,
-        terramare: !!accesos.data,
-        modulos: accesos.data?.modulos ?? [],
-        lm: lm.data ?? null,
-      });
-    } catch {
-      setPermisos({ admin: false, terramare: false, modulos: [], lm: null });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 

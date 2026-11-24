@@ -39,8 +39,15 @@ export default function Tracker({ user }) {
   const [adminPortal, setAdminPortal] = useState(false);
   useEffect(() => { supabase.rpc("tm_es_admin").then(({ data }) => setAdminPortal(data === true)); }, []);
 
-  const leerTableros = async () => ok(await supabase.from("lean_tableros").select("id, nombre, creado_por, principal").order("created_at"))
-    .sort((a, b) => Number(b.principal) - Number(a.principal));
+  // Cada tablero sabe si soy miembro: solo en esos puedo replicar tareas (salvo admin del portal o miembro del principal).
+  const leerTableros = async () => {
+    const [t, m] = await Promise.all([
+      supabase.from("lean_tableros").select("id, nombre, creado_por, principal").order("created_at"),
+      supabase.from("lean_miembros").select("tablero_id").eq("email", email),
+    ]);
+    const mios = new Set(ok(m).map((x) => x.tablero_id));
+    return ok(t).map((x) => ({ ...x, soyMiembro: mios.has(x.id) })).sort((a, b) => Number(b.principal) - Number(a.principal));
+  };
   const aplicarTableros = (t) => {
     setTableros(t);
     setActivo((a) => (t.some((x) => x.id === a) ? a : t[0]?.id ?? null));
@@ -104,7 +111,6 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
   const [filtroEstado, setFiltroEstado] = useState("");
   const [verCompletadas, setVerCompletadas] = useState(false);
   const [editando, setEditando] = useState(null);
-  const [compartiendo, setCompartiendo] = useState(null);
   const [adjuntos, setAdjuntos] = useState([]);
   const [conAdjuntos, setConAdjuntos] = useState(null);
   const [notas, setNotas] = useState([]);
@@ -173,6 +179,10 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
     const ids = conEstado.filter((t) => t.proyecto && clave(t.proyecto) === clave(viejo)).map((t) => t.id);
     accion(async () => ok(await supabase.from("lean_tareas").update({ proyecto: existente ?? nombre }).in("id", ids)));
   };
+  // Tableros donde se puede replicar una tarea: nunca el principal (ya ve todo) ni el de origen o el actual.
+  const replicaLibre = adminPortal || tableros.some((x) => x.principal && x.soyMiembro);
+  const destinosDe = (origen) => tableros.filter((x) => !x.principal && x.id !== origen && x.id !== tablero.id)
+    .map((x) => ({ ...x, puede: replicaLibre || x.soyMiembro }));
   const otrosTableros = tablero.principal ? [...new Set(conEstado.map((t) => t.tablero_id))].filter((id) => id !== tablero.id) : [];
 
   const visibles = conEstado
@@ -233,7 +243,7 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
 
       {error && <div className="alert" role="alert"><div className="alert-label">Error</div><div className="alert-text">{error}</div></div>}
 
-      <NuevaTarea responsables={responsables} proyectos={proyectos} hoy={hoy}
+      <NuevaTarea responsables={responsables} proyectos={proyectos} hoy={hoy} destinos={destinosDe(tablero.id).filter((d) => d.puede)}
         onCrear={(t) => accion(async () => ok(await supabase.from("lean_tareas").insert({ ...t, proyecto: estandarizar(t.proyecto, proyectos), responsable: estandarizar(t.responsable, responsables), tablero_id: tablero.id })))} />
 
       <div className="lean-filtros">
@@ -293,14 +303,13 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
                       title="Cambiar el nombre del proyecto en todas sus tareas">Renombrar</button>
                   )}</td></tr>
                 {lista.map((t) => editando === t.id ? (
-                  <FilaEdicion key={t.id} tarea={t} responsables={responsables} proyectos={proyectos}
+                  <FilaEdicion key={t.id} tarea={t} responsables={responsables} proyectos={proyectos} destinos={destinosDe(t.tablero_id)}
                     onCancelar={() => setEditando(null)}
                     onGuardar={(c) => accion(async () => { ok(await supabase.from("lean_tareas").update({ ...c, proyecto: estandarizar(c.proyecto, proyectos), responsable: estandarizar(c.responsable, responsables) }).eq("id", t.id)); setEditando(null); })} />
                 ) : (
                   <Fila key={t.id} t={t} hoy={hoy}
-                    origen={tablero.principal && t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
-                    compartidaCon={tablero.principal ? (t.compartida_con ?? []).map(nombreTablero) : []}
-                    compartiendo={compartiendo === t.id}
+                    origen={t.tablero_id !== tablero.id ? nombreTablero(t.tablero_id) : null}
+                    compartidaCon={(t.compartida_con ?? []).filter((id) => id !== tablero.id).map(nombreTablero)}
                     adjuntos={adjuntos.filter((a) => a.tarea_id === t.id)}
                     verAdjuntos={conAdjuntos === t.id}
                     onAbrirAdjuntos={() => setConAdjuntos(conAdjuntos === t.id ? null : t.id)}
@@ -332,12 +341,15 @@ function Tablero({ tablero, tableros, email, adminPortal, onCambioTableros }) {
                       if (a.ruta) ok(await supabase.storage.from("tracker").remove([a.ruta]));
                       ok(await supabase.from("lean_adjuntos").delete().eq("id", a.id));
                     })}
-                    destinos={tablero.principal ? tableros.filter((x) => !x.principal && x.id !== t.tablero_id) : []}
-                    onCompartir={(ids) => accion(async () => ok(await supabase.from("lean_tareas").update({ compartida_con: ids }).eq("id", t.id)))}
-                    onAbrirCompartir={() => setCompartiendo(compartiendo === t.id ? null : t.id)}
                     onEditar={() => setEditando(t.id)}
                     onCompletar={() => accion(async () => ok(await supabase.from("lean_tareas").update({ completada_el: t.completada_el ? null : hoy }).eq("id", t.id)))}
-                    onBorrar={() => confirm(`¿Borrar la tarea "${t.titulo}"?`) && accion(async () => ok(await supabase.from("lean_tareas").delete().eq("id", t.id)))} />
+                    replicada={(t.compartida_con ?? []).includes(tablero.id)}
+                    onBorrar={() => ((t.compartida_con ?? []).includes(tablero.id)
+                      // Replicada acá desde otro tablero: solo se quita de este; en su tablero de origen sigue igual.
+                      ? confirm(`¿Quitar "${t.titulo}" de este tablero? Sigue en ${nombreTablero(t.tablero_id)}.`)
+                        && accion(async () => ok(await supabase.rpc("lean_quitar_de_tablero", { tarea: t.id, tablero: tablero.id })))
+                      : confirm(`¿Borrar la tarea "${t.titulo}"?${t.compartida_con?.length ? " También desaparece de los otros tableros donde está." : ""}`)
+                        && accion(async () => ok(await supabase.from("lean_tareas").delete().eq("id", t.id))))} />
                 ))}
               </tbody>
             ))}
@@ -370,13 +382,12 @@ function Kpi({ estado, n, onClick, activo }) {
   );
 }
 
-// Señales del tablero principal: de qué tablero viene la tarea y con cuáles está compartida.
-function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo, onCompartir, onAbrirCompartir,
+// Señales: de qué tablero viene la tarea y en qué otros tableros está replicada.
+function Fila({ t, hoy, origen, compartidaCon = [], replicada,
   adjuntos, verAdjuntos, onAbrirAdjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo, onQuitarAdjunto, onEditar, onCompletar, onBorrar,
   notas, verNotas, onAbrirNotas, onAgregarNota, onBorrarNota, onEditarNota, puedeEditarNotas, autorDe, reunionDe, email }) {
   const dias = t.estado === "completada" || !t.fin_tentativa ? null : diasEntre(hoy, t.fin_tentativa);
   const faltaImpedimento = t.estado === "atrasada" && !t.nota.trim();
-  const compartida = t.compartida_con ?? [];
   return (
     <>
     <tr className={`lean-fila lean-fila--${t.estado}`}>
@@ -391,7 +402,7 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
         {(origen || compartidaCon.length > 0) && (
           <div className="lean-senales">
             {origen && <span className="lean-chip lean-chip--origen" title="La tarea se creó en otro tablero">↙ De {origen}</span>}
-            {compartidaCon.map((n) => <span key={n} className="lean-chip lean-chip--compartida" title="También aparece en este tablero">↗ En {n}</span>)}
+            {compartidaCon.map((n) => <span key={n} className="lean-chip lean-chip--compartida" title="También aparece en ese tablero">↗ En {n}</span>)}
           </div>
         )}
         {adjuntos.length > 0 && (
@@ -412,11 +423,8 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
           aria-expanded={verNotas === "completo"} title="Bitácora por fecha de lo que se fue hablando">Notas{notas.length ? ` (${notas.length})` : ""}</button>
         <button type="button" className={`btn btn-secondary lean-chico ${verAdjuntos ? "is-active" : ""}`} onClick={onAbrirAdjuntos}
           aria-expanded={verAdjuntos} title="Links (por ejemplo, carpetas de SharePoint) y archivos">Adjuntos{adjuntos.length ? ` (${adjuntos.length})` : ""}</button>
-        {destinos.length > 0 && (
-          <button type="button" className={`btn btn-secondary lean-chico ${compartiendo ? "is-active" : ""}`} onClick={onAbrirCompartir}
-            aria-expanded={compartiendo}>Compartir</button>
-        )}
-        <button type="button" className="lean-borrar" onClick={onBorrar} aria-label="Borrar tarea" title="Borrar">×</button>
+        <button type="button" className="lean-borrar" onClick={onBorrar} aria-label={replicada ? "Quitar de este tablero" : "Borrar tarea"}
+          title={replicada ? "Quitar de este tablero" : "Borrar"}>×</button>
       </div></td>
     </tr>
     {verNotas && (
@@ -427,21 +435,6 @@ function Fila({ t, hoy, origen, compartidaCon = [], destinos = [], compartiendo,
     {verAdjuntos && (
       <PanelAdjuntos adjuntos={adjuntos} onAgregarLink={onAgregarLink} onSubirArchivo={onSubirArchivo}
         onAbrirArchivo={onAbrirArchivo} onQuitar={onQuitarAdjunto} />
-    )}
-    {compartiendo && (
-      <tr className="lean-compartir">
-        <td colSpan={8}>
-          <span className="lean-compartir-l">Mostrar esta tarea también en:</span>
-          {destinos.map((d) => (
-            <label key={d.id} className="lean-check">
-              <input type="checkbox" checked={compartida.includes(d.id)}
-                onChange={() => onCompartir(compartida.includes(d.id) ? compartida.filter((x) => x !== d.id) : [...compartida, d.id])} />
-              {d.nombre}
-            </label>
-          ))}
-          <span className="lean-ayuda">Ahí se ve como una tarea más del tablero: lo que se cambie en uno se ve en todos.</span>
-        </td>
-      </tr>
     )}
     </>
   );
@@ -616,13 +609,14 @@ function PanelAdjuntos({ adjuntos, onAgregarLink, onSubirArchivo, onAbrirArchivo
   );
 }
 
-function FilaEdicion({ tarea, responsables, proyectos, onGuardar, onCancelar }) {
+function FilaEdicion({ tarea, responsables, proyectos, destinos, onGuardar, onCancelar }) {
+  const [replicar, setReplicar] = useState(tarea.compartida_con ?? []);
   const [c, setC] = useState({
     proyecto: tarea.proyecto, titulo: tarea.titulo, responsable: tarea.responsable,
     inicio: tarea.inicio ?? "", fin_tentativa: tarea.fin_tentativa ?? "", completada_el: tarea.completada_el ?? "", nota: tarea.nota,
   });
   const set = (k) => (e) => setC({ ...c, [k]: e.target.value });
-  const guardar = () => onGuardar({ ...c, titulo: c.titulo.trim(), inicio: c.inicio || null, fin_tentativa: c.fin_tentativa || null, completada_el: c.completada_el || null });
+  const guardar = () => onGuardar({ ...c, compartida_con: replicar, titulo: c.titulo.trim(), inicio: c.inicio || null, fin_tentativa: c.fin_tentativa || null, completada_el: c.completada_el || null });
   return (
     <tr className="lean-editando">
       <td colSpan={8}>
@@ -635,6 +629,7 @@ function FilaEdicion({ tarea, responsables, proyectos, onGuardar, onCancelar }) 
           <label className="lean-campo"><span>Fin tentativa</span><input type="date" value={c.fin_tentativa} onChange={set("fin_tentativa")} /></label>
           <label className="lean-campo"><span>Completada el</span><input type="date" value={c.completada_el} onChange={set("completada_el")} /></label>
           <label className="lean-campo lean-ancho"><span>Impedimento / nota</span><input value={c.nota} onChange={set("nota")} /></label>
+          <Replicar destinos={destinos} elegidos={replicar} onCambio={setReplicar} />
           <div className="lean-form-acciones">
             <button type="button" className="btn btn-primary" disabled={!c.titulo.trim()} onClick={guardar}>Guardar</button>
             <button type="button" className="btn btn-secondary" onClick={onCancelar}>Cancelar</button>
@@ -646,8 +641,8 @@ function FilaEdicion({ tarea, responsables, proyectos, onGuardar, onCancelar }) 
   );
 }
 
-function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
-  const vacia = { proyecto: "", titulo: "", responsable: "", inicio: hoy, fin_tentativa: "" };
+function NuevaTarea({ responsables, proyectos, hoy, destinos, onCrear }) {
+  const vacia = { proyecto: "", titulo: "", responsable: "", inicio: hoy, fin_tentativa: "", compartida_con: [] };
   const [c, setC] = useState(vacia);
   const set = (k) => (e) => setC({ ...c, [k]: e.target.value });
   const crear = async (e) => {
@@ -667,9 +662,28 @@ function NuevaTarea({ responsables, proyectos, hoy, onCrear }) {
         <label className="lean-campo"><span>Inicio</span><input type="date" value={c.inicio} onChange={set("inicio")} /></label>
         <label className="lean-campo"><span>Fin tentativa</span><input type="date" value={c.fin_tentativa} onChange={set("fin_tentativa")} /></label>
         <div className="lean-form-acciones"><button className="btn btn-primary" disabled={!c.titulo.trim()}>Agregar</button></div>
+        <Replicar destinos={destinos} elegidos={c.compartida_con} onCambio={(compartida_con) => setC({ ...c, compartida_con })} />
       </div>
       <Listas responsables={responsables} proyectos={proyectos} />
     </form>
+  );
+}
+
+// Otros tableros donde también aparece la tarea (es la misma tarea: lo que se cambie se ve en todos).
+// Los que no se pueden tocar (tableros de los que no sos miembro) se ven pero no se cambian.
+function Replicar({ destinos, elegidos, onCambio }) {
+  if (!destinos.length) return null;
+  return (
+    <div className="lean-replicar">
+      <span className="lean-replicar-l">Mostrar también en:</span>
+      {destinos.map((d) => (
+        <label key={d.id} className="lean-check" title={d.puede ? undefined : "Solo lo cambian los miembros de ese tablero"}>
+          <input type="checkbox" checked={elegidos.includes(d.id)} disabled={!d.puede}
+            onChange={() => onCambio(elegidos.includes(d.id) ? elegidos.filter((x) => x !== d.id) : [...elegidos, d.id])} />
+          {d.nombre}
+        </label>
+      ))}
+    </div>
   );
 }
 
